@@ -1,0 +1,40 @@
+{
+  "schema_version": 3,
+  "poll_interval_seconds": 1,
+  "idle_threshold_seconds": 180,
+  "output_file": "data/workadapt_events_v3.jsonl",
+  "database_file": "data/agent_state.db",
+  "role": "general",
+  "collect": {
+    "window": true,
+    "idle": true,
+    "session": true,
+    "keyboard_metrics": false,
+    "mouse_metrics": false,
+    "language": true,
+    "tools": true,
+    "file_metadata": false
+  },
+  "privacy": {
+    "redact_titles": false,
+    "exclude_apps": [],
+    "keystroke_content": false
+  },
+  "taxonomy": {
+    "development": ["code", "pycharm", "intellij", "webstorm", "eclipse", "devenv", "antigravity", "idea", "git", "powershell", "cmd", "terminal", "bash", "windowsterminal"],
+    "browser": ["chrome", "firefox", "msedge", "brave", "opera", "safari", "edge"],
+    "communication": ["teams", "slack", "discord", "zoom", "outlook", "thunderbird", "skype", "meet"],
+    "office": ["winword", "word", "excel", "powerpnt", "powerpoint", "libreoffice", "notion", "onenote", "acrobat", "acrord32"],
+    "finance": ["sage", "sap", "quickbooks", "compta", "erp", "ciel"],
+    "audit": ["acl", "idea", "caseware", "teamate"],
+    "hr": ["sirh", "payfit", "workday", "talentsoft", "lucca"],
+    "file_management": ["explorer", "finder", "filemanager", "totalcmd", "dolphin"],
+    "media": ["vlc", "spotify", "photos", "mediaplayer", "music", "zoomplayer"],
+    "system": ["taskmgr", "settings", "control", "systemsettings", "lockapp"]
+  },
+  "sync": {
+    "enabled": false,
+    "endpoint": "",
+    "batch_seconds": 60
+  }
+}

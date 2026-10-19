@@ -1,0 +1,5 @@
+# WorkAdapt Agent - runtime has no third-party dependency (Python stdlib only).
+# Windows: ctypes (built-in)
+# macOS:   PyObjC frameworks (install only if you target macOS)
+#   pyobjc-framework-Cocoa
+#   pyobjc-framework-Quartz
