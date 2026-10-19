@@ -4,6 +4,7 @@
   "idle_threshold_seconds": 180,
   "output_file": "data/workadapt_events_v3.jsonl",
   "database_file": "data/agent_state.db",
+  "catalogs": "catalogs",
   "role": "general",
   "collect": {
     "window": true,
@@ -11,26 +12,21 @@
     "session": true,
     "keyboard_metrics": false,
     "mouse_metrics": false,
-    "language": true,
     "tools": true,
+    "documents": true,
+    "tasks": true,
+    "domains": false,
+    "files": true,
+    "programming_language": true,
     "file_metadata": false
   },
   "privacy": {
     "redact_titles": false,
     "exclude_apps": [],
+    "exclude_domains": [],
+    "hash_paths": true,
+    "retention_days": 30,
     "keystroke_content": false
-  },
-  "taxonomy": {
-    "development": ["code", "pycharm", "intellij", "webstorm", "eclipse", "devenv", "antigravity", "idea", "git", "powershell", "cmd", "terminal", "bash", "windowsterminal"],
-    "browser": ["chrome", "firefox", "msedge", "brave", "opera", "safari", "edge"],
-    "communication": ["teams", "slack", "discord", "zoom", "outlook", "thunderbird", "skype", "meet"],
-    "office": ["winword", "word", "excel", "powerpnt", "powerpoint", "libreoffice", "notion", "onenote", "acrobat", "acrord32"],
-    "finance": ["sage", "sap", "quickbooks", "compta", "erp", "ciel"],
-    "audit": ["acl", "idea", "caseware", "teamate"],
-    "hr": ["sirh", "payfit", "workday", "talentsoft", "lucca"],
-    "file_management": ["explorer", "finder", "filemanager", "totalcmd", "dolphin"],
-    "media": ["vlc", "spotify", "photos", "mediaplayer", "music", "zoomplayer"],
-    "system": ["taskmgr", "settings", "control", "systemsettings", "lockapp"]
   },
   "sync": {
     "enabled": false,

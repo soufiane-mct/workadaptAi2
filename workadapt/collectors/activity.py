@@ -13,12 +13,12 @@ def _make_event_id(payload):
 
 
 class ActivityCollector:
-    def __init__(self, probe, config, categorizer, device_id, role):
+    def __init__(self, probe, config, enricher, device_id, role):
         self.probe = probe
         self.config = config
-        self.categorizer = categorizer
+        self.enricher = enricher
         self.device_id = device_id
-        self.role = role
+        self.declared_role = role
         self.schema_version = config.get("schema_version", 3)
         self.idle_threshold = config.get("idle_threshold_seconds", 180)
         self.collect = config.get("collect", {})
@@ -27,14 +27,7 @@ class ActivityCollector:
 
         self.window_segment = None
         self.idle_segment = None
-        self.system_language = self._safe(self.probe.get_system_language)
         self.screen_count = self._safe(self.probe.get_screen_count)
-
-        if self.collect.get("window", True):
-            self.probe.get_foreground_window()
-
-        self.last_window = self._read_window()
-        self.current_status = self._read_status()
 
     def _safe(self, func):
         try:
@@ -43,10 +36,7 @@ class ActivityCollector:
             return None
 
     def _read_window(self):
-        window = self._safe(self.probe.get_foreground_window)
-        if window is None:
-            return None
-        return window
+        return self._safe(self.probe.get_foreground_window)
 
     def _read_status(self):
         locked = self._safe(self.probe.is_session_locked)
@@ -134,26 +124,21 @@ class ActivityCollector:
         context = {"os": self._safe(self.probe.get_os_name)}
         if self.collect.get("session", True):
             context["screens"] = self.screen_count
-            context["session"] = "locked" if self._safe(
-                self.probe.is_session_locked
-            ) else "unlocked"
+            context["session"] = (
+                "locked" if self._safe(self.probe.is_session_locked) else "unlocked"
+            )
         return context
-
-    def _language(self):
-        if not self.collect.get("language", True):
-            return None
-        return {
-            "system": self.system_language,
-            "keyboard_layout": self._safe(self.probe.get_keyboard_layout),
-        }
 
     def _close_window(self, end):
         segment = self.window_segment
         self.window_segment = None
         duration = max((end - segment["start"]).total_seconds(), 0.0)
+
         app = segment["app"]
         title = self._redact_title(app, segment["title"])
-        category = self.categorizer.classify(app) if self.collect.get("tools", True) else "unknown"
+        enriched = self.enricher.enrich_window(
+            app, segment["title"], self.declared_role
+        )
 
         payload = {
             "source": "workadapt_agent",
@@ -163,29 +148,41 @@ class ActivityCollector:
             "title": title,
         }
 
-        record = {
+        return {
             "event_id": _make_event_id(payload),
             "source": "workadapt_agent",
             "schema_version": self.schema_version,
             "device_id": self.device_id,
-            "role": self.role,
+            "role": enriched["role"],
             "event_type": "window_activity",
             "event_start": segment["start"].isoformat(),
             "event_end": end.isoformat(),
             "timestamp": segment["start"].isoformat(),
             "duration_seconds": round(duration, 3),
             "activity_status": segment["status"],
-            "app": {"name": app, "pid": segment["pid"], "category": category},
-            "language": self._language(),
+            "app": {
+                "name": app,
+                "pid": segment["pid"],
+                "category": enriched["category"],
+                "tool": enriched["tool"],
+                "vendor": enriched["vendor"],
+                "domains": enriched["domains"],
+            },
+            "document": enriched["document"],
+            "work_context": {
+                "domains": enriched["domains"],
+                "tasks": enriched["tasks"],
+                "confidence": enriched["confidence"],
+            },
+            "programming_language": enriched["programming_language"],
             "context": self._context(),
             "data": {
                 "app": app,
                 "title": title,
-                "application_category": category,
+                "application_category": enriched["category"],
             },
             "collected_at": utc_now().isoformat(),
         }
-        return record
 
     def _close_idle(self, end):
         segment = self.idle_segment
@@ -199,12 +196,12 @@ class ActivityCollector:
             "status": segment["raw"],
         }
 
-        record = {
+        return {
             "event_id": _make_event_id(payload),
             "source": "workadapt_agent",
             "schema_version": self.schema_version,
             "device_id": self.device_id,
-            "role": self.role,
+            "role": self.enricher.role_for_idle(self.declared_role),
             "event_type": "idle_status",
             "event_start": segment["start"].isoformat(),
             "event_end": end.isoformat(),
@@ -214,4 +211,3 @@ class ActivityCollector:
             "data": {"status": segment["raw"]},
             "collected_at": utc_now().isoformat(),
         }
-        return record

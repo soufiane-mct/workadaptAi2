@@ -5,9 +5,10 @@ from datetime import datetime, timezone
 
 from .collectors.activity import ActivityCollector
 from .config import load_config
-from .enrichers.categorizer import Categorizer
+from .enrichers.pipeline import Enricher
 from .platform import get_platform_probe
 from .storage.store import EventStore
+from .summary import generate_daily_summary
 
 
 def _device_id(config):
@@ -24,22 +25,26 @@ class Agent:
     def __init__(self, config):
         self.config = config
         self.probe = get_platform_probe(config)
-        self.categorizer = Categorizer(config.get("taxonomy"))
+        self.enricher = Enricher(config)
         self.store = EventStore(config.output_path, config.database_path)
         self.collector = ActivityCollector(
             self.probe,
             config,
-            self.categorizer,
+            self.enricher,
             _device_id(config),
             config.get("role", "general"),
         )
         self.poll_interval = config.get("poll_interval_seconds", 1)
+        self.summary_path = config.output_path.parent / "workadapt_summary_daily.json"
 
     def run(self):
         _log("WorkAdapt Agent")
         _log(f"OS: {self.probe.get_os_name()} | probe: {self.probe.name}")
         _log(f"rôle: {self.config.get('role')} | sortie: {self.store.output_path}")
-        _log(f"seuil AFK: {self.collector.idle_threshold}s | intervalle: {self.poll_interval}s")
+        _log(
+            f"seuil AFK: {self.collector.idle_threshold}s | "
+            f"intervalle: {self.poll_interval}s"
+        )
         _log("Arrêt : Ctrl+C\n")
 
         saved_total = 0
@@ -50,10 +55,12 @@ class Agent:
                 for record in events:
                     if self.store.save(record):
                         saved_total += 1
+                        label = record.get("data", {}).get(
+                            "app", record.get("data", {}).get("status", "")
+                        )
                         _log(
                             f"{record['event_type']} "
-                            f"{record['duration_seconds']}s "
-                            f"{record.get('data', {}).get('app', record.get('data', {}).get('status', ''))}"
+                            f"{record['duration_seconds']}s {label}"
                         )
 
                 elapsed = time.monotonic() - loop_start
@@ -65,9 +72,14 @@ class Agent:
                     saved_total += 1
         finally:
             counts = self.store.count()
+            output_path = self.store.output_path
             self.store.close()
+
+            generate_daily_summary(output_path, self.summary_path)
+
             _log(f"Événements écrits cette session : {saved_total}")
             _log(f"Total en base de déduplication : {counts}")
+            _log(f"Résumé quotidien : {self.summary_path}")
 
 
 def main(argv=None):

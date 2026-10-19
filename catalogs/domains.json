@@ -1,0 +1,52 @@
+{
+  "domains": {
+    "salesforce.com": { "tool": "Salesforce", "vendor": "Salesforce", "domains": ["crm", "sales"] },
+    "force.com": { "tool": "Salesforce", "vendor": "Salesforce", "domains": ["crm", "sales"] },
+    "hubspot.com": { "tool": "HubSpot", "vendor": "HubSpot", "domains": ["crm", "sales", "marketing"] },
+    "pipedrive.com": { "tool": "Pipedrive", "vendor": "Pipedrive", "domains": ["crm", "sales"] },
+
+    "atlassian.net": { "tool": "Atlassian", "vendor": "Atlassian", "domains": ["project_management"] },
+    "jira": { "tool": "Jira", "vendor": "Atlassian", "domains": ["project_management", "support"] },
+    "confluence": { "tool": "Confluence", "vendor": "Atlassian", "domains": ["documentation"] },
+    "trello.com": { "tool": "Trello", "vendor": "Atlassian", "domains": ["project_management"] },
+    "asana.com": { "tool": "Asana", "vendor": "Asana", "domains": ["project_management"] },
+    "monday.com": { "tool": "monday.com", "vendor": "monday.com", "domains": ["project_management"] },
+    "notion.so": { "tool": "Notion", "vendor": "Notion", "domains": ["documentation", "notes"] },
+
+    "github.com": { "tool": "GitHub", "vendor": "Microsoft", "domains": ["development"] },
+    "gitlab.com": { "tool": "GitLab", "vendor": "GitLab", "domains": ["development"] },
+    "bitbucket.org": { "tool": "Bitbucket", "vendor": "Atlassian", "domains": ["development"] },
+
+    "workday.com": { "tool": "Workday", "vendor": "Workday", "domains": ["hr"] },
+    "successfactors": { "tool": "SuccessFactors", "vendor": "SAP", "domains": ["hr"] },
+    "lucca.fr": { "tool": "Lucca", "vendor": "Lucca", "domains": ["hr"] },
+    "payfit.com": { "tool": "PayFit", "vendor": "PayFit", "domains": ["hr", "payroll"] },
+
+    "sap.com": { "tool": "SAP", "vendor": "SAP", "domains": ["erp", "finance", "accounting", "audit", "hr", "operations"] },
+    "sage.com": { "tool": "Sage", "vendor": "Sage", "domains": ["finance", "accounting"] },
+    "quickbooks": { "tool": "QuickBooks", "vendor": "Intuit", "domains": ["finance", "accounting"] },
+    "xero.com": { "tool": "Xero", "vendor": "Xero", "domains": ["finance", "accounting"] },
+    "exact.com": { "tool": "Exact", "vendor": "Exact", "domains": ["finance", "accounting"] },
+
+    "zendesk.com": { "tool": "Zendesk", "vendor": "Zendesk", "domains": ["support"] },
+    "freshdesk.com": { "tool": "Freshdesk", "vendor": "Freshworks", "domains": ["support"] },
+    "servicenow.com": { "tool": "ServiceNow", "vendor": "ServiceNow", "domains": ["support", "operations"] },
+
+    "docs.google.com": { "tool": "Google Docs", "vendor": "Google", "domains": ["office", "documentation"] },
+    "sheets.google.com": { "tool": "Google Sheets", "vendor": "Google", "domains": ["office", "spreadsheet"] },
+    "drive.google.com": { "tool": "Google Drive", "vendor": "Google", "domains": ["file_management"] },
+    "mail.google.com": { "tool": "Gmail", "vendor": "Google", "domains": ["communication", "email"] },
+    "calendar.google.com": { "tool": "Google Calendar", "vendor": "Google", "domains": ["communication", "meeting"] },
+    "office.com": { "tool": "Microsoft 365", "vendor": "Microsoft", "domains": ["office"] },
+    "outlook.office.com": { "tool": "Outlook Web", "vendor": "Microsoft", "domains": ["communication", "email"] },
+    "teams.microsoft.com": { "tool": "Teams Web", "vendor": "Microsoft", "domains": ["communication", "meeting"] },
+
+    "figma.com": { "tool": "Figma", "vendor": "Figma", "domains": ["design"] },
+    "canva.com": { "tool": "Canva", "vendor": "Canva", "domains": ["design", "marketing"] },
+    "adobe.com": { "tool": "Adobe", "vendor": "Adobe", "domains": ["design"] },
+
+    "linkedin.com": { "tool": "LinkedIn", "vendor": "Microsoft", "domains": ["sales", "marketing", "hr"] },
+    "facebook.com": { "tool": "Facebook", "vendor": "Meta", "domains": ["marketing"] },
+    "youtube.com": { "tool": "YouTube", "vendor": "Google", "domains": ["media"] }
+  }
+}

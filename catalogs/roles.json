@@ -1,0 +1,52 @@
+{
+  "roles": {
+    "development": {
+      "label": "Développement",
+      "domains": ["development", "devops", "database", "api"]
+    },
+    "audit": {
+      "label": "Audit",
+      "domains": ["audit", "finance", "accounting"]
+    },
+    "accounting": {
+      "label": "Comptabilité",
+      "domains": ["accounting", "finance", "erp"]
+    },
+    "hr": {
+      "label": "Ressources humaines",
+      "domains": ["hr", "payroll"]
+    },
+    "sales": {
+      "label": "Vente / CRM",
+      "domains": ["crm", "sales"]
+    },
+    "support": {
+      "label": "Support",
+      "domains": ["support", "communication"]
+    },
+    "design": {
+      "label": "Design",
+      "domains": ["design", "3d"]
+    },
+    "marketing": {
+      "label": "Marketing",
+      "domains": ["marketing", "media", "design"]
+    },
+    "management": {
+      "label": "Management",
+      "domains": ["office", "meeting", "project_management"]
+    },
+    "operations": {
+      "label": "Opérations",
+      "domains": ["operations", "erp", "project_management"]
+    },
+    "legal": {
+      "label": "Juridique",
+      "domains": ["office", "pdf", "documentation"]
+    },
+    "general": {
+      "label": "Général",
+      "domains": []
+    }
+  }
+}
