@@ -10,11 +10,13 @@ def _empty_day():
         "idle_events": 0,
         "active_seconds": 0.0,
         "inactive_seconds": 0.0,
+        "input": {"keys": 0, "clicks": 0, "moves": 0},
         "apps": {},
         "tools": {},
         "categories": {},
         "domains": {},
         "tasks": {},
+        "roles": {},
         "programming_languages": {},
     }
 
@@ -25,63 +27,63 @@ def _add(bucket, key, seconds):
 
 
 def _round(bucket):
-    return {key: round(value, 3) for key, value in sorted(
-        bucket.items(), key=lambda item: item[1], reverse=True
-    )}
+    return {
+        key: round(value, 3)
+        for key, value in sorted(
+            bucket.items(), key=lambda item: item[1], reverse=True
+        )
+    }
 
 
-def generate_daily_summary(input_path, output_path=None):
-    input_path = Path(input_path)
-    if not input_path.exists():
-        return None
+def _accumulate(days, event):
+    day = (event.get("event_start") or "")[:10]
+    if not day:
+        return
 
-    days = {}
+    stats = days.setdefault(day, _empty_day())
+    stats["events"] += 1
+    duration = float(event.get("duration_seconds", 0) or 0)
 
-    with input_path.open("r", encoding="utf-8-sig") as file:
-        for line in file:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
+    event_type = event.get("event_type")
+    if event_type == "window_activity":
+        stats["window_events"] += 1
+        app = event.get("app") or {}
+        name = app.get("name") or "unknown"
+        _add(stats["apps"], name, duration)
+        _add(stats["tools"], app.get("tool") or name, duration)
+        _add(stats["categories"], app.get("category") or "other", duration)
+        for domain in app.get("domains", []) or []:
+            _add(stats["domains"], domain, duration)
 
-            day = (event.get("event_start") or "")[:10]
-            if not day:
-                continue
+        context = event.get("work_context") or {}
+        for task in context.get("tasks", []) or []:
+            _add(stats["tasks"], task, duration)
 
-            stats = days.setdefault(day, _empty_day())
-            stats["events"] += 1
-            duration = float(event.get("duration_seconds", 0) or 0)
+        role = event.get("role")
+        if isinstance(role, dict):
+            role_name = role.get("inferred") or role.get("declared") or "unknown"
+        else:
+            role_name = role or "unknown"
+        _add(stats["roles"], role_name, duration)
 
-            event_type = event.get("event_type")
-            if event_type == "window_activity":
-                stats["window_events"] += 1
-                app = event.get("app") or {}
-                name = app.get("name") or "unknown"
-                _add(stats["apps"], name, duration)
-                _add(stats["tools"], app.get("tool") or name, duration)
-                _add(stats["categories"], app.get("category") or "other", duration)
-                for domain in app.get("domains", []) or []:
-                    _add(stats["domains"], domain, duration)
+        language = event.get("programming_language")
+        if language:
+            _add(stats["programming_languages"], language, duration)
 
-                context = event.get("work_context") or {}
-                for task in context.get("tasks", []) or []:
-                    _add(stats["tasks"], task, duration)
+        input_stats = event.get("input") or {}
+        for key in ("keys", "clicks", "moves"):
+            stats["input"][key] += int(input_stats.get(key, 0) or 0)
 
-                language = event.get("programming_language")
-                if language:
-                    _add(stats["programming_languages"], language, duration)
+    elif event_type == "idle_status":
+        stats["idle_events"] += 1
+        status = event.get("activity_status")
+        if status == "active":
+            stats["active_seconds"] += duration
+        elif status == "inactive":
+            stats["inactive_seconds"] += duration
 
-            elif event_type == "idle_status":
-                stats["idle_events"] += 1
-                status = event.get("activity_status")
-                if status == "active":
-                    stats["active_seconds"] += duration
-                elif status == "inactive":
-                    stats["inactive_seconds"] += duration
 
+def _finalize(days):
     for stats in days.values():
         for key in (
             "apps",
@@ -89,6 +91,7 @@ def generate_daily_summary(input_path, output_path=None):
             "categories",
             "domains",
             "tasks",
+            "roles",
             "programming_languages",
         ):
             stats[key] = _round(stats[key])
@@ -97,9 +100,55 @@ def generate_daily_summary(input_path, output_path=None):
         stats["active_minutes"] = round(stats["active_seconds"] / 60, 2)
         stats["inactive_minutes"] = round(stats["inactive_seconds"] / 60, 2)
 
+
+def aggregate_events(events):
+    days = {}
+    for event in events:
+        _accumulate(days, event)
+    _finalize(days)
+    return days
+
+
+def _input_files(inputs):
+    if inputs is None:
+        return []
+    if isinstance(inputs, (str, Path)):
+        inputs = [inputs]
+
+    files = []
+    for item in inputs:
+        path = Path(item)
+        if path.is_dir():
+            files.extend(sorted(path.glob("*.jsonl")))
+        elif path.exists():
+            files.append(path)
+    return files
+
+
+def generate_daily_summary(inputs, output_path=None):
+    files = _input_files(inputs)
+    if not files:
+        return None
+
+    days = {}
+
+    for path in files:
+        with path.open("r", encoding="utf-8-sig") as file:
+            for line in file:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                _accumulate(days, event)
+
+    _finalize(days)
+
     summary = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "source_file": str(input_path),
+        "source_files": [str(path) for path in files],
         "days": days,
     }
 

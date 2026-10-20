@@ -1,14 +1,19 @@
+import argparse
 import hashlib
+import logging
 import socket
 import time
-from datetime import datetime, timezone
 
 from .collectors.activity import ActivityCollector
 from .config import load_config
 from .enrichers.pipeline import Enricher
+from .logging_setup import setup_logging
 from .platform import get_platform_probe
 from .storage.store import EventStore
 from .summary import generate_daily_summary
+from .sync import EventUploader
+
+logger = logging.getLogger("workadapt")
 
 
 def _device_id(config):
@@ -16,17 +21,19 @@ def _device_id(config):
     return hashlib.sha256(name.encode("utf-8")).hexdigest()[:16]
 
 
-def _log(message):
-    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{stamp}] {message}", flush=True)
-
-
 class Agent:
     def __init__(self, config):
         self.config = config
         self.probe = get_platform_probe(config)
         self.enricher = Enricher(config)
-        self.store = EventStore(config.output_path, config.database_path)
+
+        privacy = config.get("privacy", {}) or {}
+        self.store = EventStore(
+            config.output_path,
+            config.database_path,
+            rotate_daily=privacy.get("rotate_daily", True),
+            retention_days=privacy.get("retention_days", 0),
+        )
         self.collector = ActivityCollector(
             self.probe,
             config,
@@ -35,54 +42,133 @@ class Agent:
             config.get("role", "general"),
         )
         self.poll_interval = config.get("poll_interval_seconds", 1)
-        self.summary_path = config.output_path.parent / "workadapt_summary_daily.json"
+        self.summary_path = (
+            config.output_path.parent / "workadapt_summary_daily.json"
+        )
+        self.uploader = EventUploader(config, self.store)
+        self.saved_total = 0
 
     def run(self):
-        _log("WorkAdapt Agent")
-        _log(f"OS: {self.probe.get_os_name()} | probe: {self.probe.name}")
-        _log(f"rôle: {self.config.get('role')} | sortie: {self.store.output_path}")
-        _log(
-            f"seuil AFK: {self.collector.idle_threshold}s | "
-            f"intervalle: {self.poll_interval}s"
+        logger.info("WorkAdapt Agent")
+        logger.info("OS: %s | probe: %s", self.probe.get_os_name(), self.probe.name)
+        logger.info(
+            "rôle: %s | sortie: %s",
+            self.config.get("role"),
+            self.store.output_path,
         )
-        _log("Arrêt : Ctrl+C\n")
+        logger.info(
+            "seuil AFK: %ss | intervalle: %ss",
+            self.collector.idle_threshold,
+            self.poll_interval,
+        )
+        if self.store.pruned:
+            logger.info("rétention: %d élément(s) purgé(s)", self.store.pruned)
+        if self.uploader.start():
+            logger.info("sync: activé vers %s", self.uploader.endpoint)
+        else:
+            logger.info("sync: désactivé")
+        logger.info("Arrêt : Ctrl+C")
 
-        saved_total = 0
+        self.saved_total = 0
         try:
-            while True:
-                loop_start = time.monotonic()
-                events = self.collector.poll()
-                for record in events:
-                    if self.store.save(record):
-                        saved_total += 1
-                        label = record.get("data", {}).get(
-                            "app", record.get("data", {}).get("status", "")
-                        )
-                        _log(
-                            f"{record['event_type']} "
-                            f"{record['duration_seconds']}s {label}"
-                        )
-
-                elapsed = time.monotonic() - loop_start
-                time.sleep(max(self.poll_interval - elapsed, 0.05))
+            self._loop()
         except KeyboardInterrupt:
-            _log("Arrêt demandé, clôture des segments en cours...")
+            logger.info("Arrêt demandé, clôture des segments en cours...")
+        except Exception:
+            logger.exception("erreur fatale")
+            raise
+        finally:
+            self._shutdown()
+
+    def _loop(self):
+        while True:
+            loop_start = time.monotonic()
+            events = self.collector.poll()
+            for record in events:
+                if self.store.save(record):
+                    self.saved_total += 1
+                    self._log_event(record)
+
+            elapsed = time.monotonic() - loop_start
+            time.sleep(max(self.poll_interval - elapsed, 0.05))
+
+    def _shutdown(self):
+        try:
             for record in self.collector.flush():
                 if self.store.save(record):
-                    saved_total += 1
-        finally:
-            counts = self.store.count()
-            output_path = self.store.output_path
-            self.store.close()
+                    self.saved_total += 1
+                    self._log_event(record)
+        except Exception:
+            logger.exception("échec de la clôture des segments")
 
-            generate_daily_summary(output_path, self.summary_path)
+        self.uploader.stop()
+        if self.uploader.enabled:
+            try:
+                self.uploader.upload_once()
+            except Exception as error:
+                logger.warning("sync: envoi final échoué: %s", error)
 
-            _log(f"Événements écrits cette session : {saved_total}")
-            _log(f"Total en base de déduplication : {counts}")
-            _log(f"Résumé quotidien : {self.summary_path}")
+        try:
+            self.probe.close()
+        except Exception:
+            logger.exception("échec de la fermeture du probe")
+
+        counts = self.store.count()
+        files = self.store.event_files()
+        self.store.close()
+
+        try:
+            generate_daily_summary(files, self.summary_path)
+        except Exception:
+            logger.exception("échec de la génération du résumé")
+
+        logger.info("Événements écrits cette session : %d", self.saved_total)
+        logger.info("Total en base de déduplication : %d", counts)
+        logger.info("Résumé quotidien : %s", self.summary_path)
+
+    @staticmethod
+    def _log_event(record):
+        data = record.get("data", {})
+        label = data.get("app") or data.get("status") or ""
+        logger.info(
+            "%s %.3fs %s",
+            record.get("event_type"),
+            record.get("duration_seconds", 0),
+            label,
+        )
+
+
+def _print_summary(config):
+    base = config.output_path
+    files = sorted(base.parent.glob(f"{base.stem}-*.jsonl"))
+    if base.exists():
+        files.append(base)
+    summary = generate_daily_summary(
+        files, config.output_path.parent / "workadapt_summary_daily.json"
+    )
+    if not summary:
+        logger.warning("aucun événement à résumer")
+        return 1
+    for day, stats in sorted(summary["days"].items()):
+        print(
+            f"{day}: {stats['active_minutes']} min actif, "
+            f"{stats['window_events']} événements fenêtre"
+        )
+    print(f"Résumé : {config.output_path.parent / 'workadapt_summary_daily.json'}")
+    return 0
 
 
 def main(argv=None):
-    config = load_config()
+    parser = argparse.ArgumentParser(description="WorkAdapt Agent")
+    parser.add_argument("--config", default=None)
+    parser.add_argument("--summary", action="store_true")
+    args = parser.parse_args(argv)
+
+    config = load_config(args.config)
+    setup_logging(config)
+
+    if args.summary:
+        return _print_summary(config)
+
     Agent(config).run()
     return 0

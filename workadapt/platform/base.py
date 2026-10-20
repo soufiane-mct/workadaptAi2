@@ -37,3 +37,9 @@ class PlatformProbe:
 
     def is_session_locked(self):
         return None
+
+    def get_input_counters(self):
+        return None
+
+    def close(self):
+        pass

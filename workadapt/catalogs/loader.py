@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from ..config import PROJECT_ROOT
+from ..config import BUNDLE_DIR, PROJECT_ROOT
 
 
 def _load_json(path):
@@ -21,6 +21,8 @@ class CatalogSet:
         base = Path(directory) if directory else PROJECT_ROOT / "catalogs"
         if not base.is_absolute():
             base = PROJECT_ROOT / base
+        if not base.exists() and (BUNDLE_DIR / "catalogs").exists():
+            base = BUNDLE_DIR / "catalogs"
 
         self.directory = base
         self.apps = _load_json(base / "apps.json")

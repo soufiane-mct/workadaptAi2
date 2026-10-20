@@ -6,6 +6,15 @@ __pycache__/
 .env.*
 !.env.example
 
+.pytest_cache/
+build/
+dist/
+*.spec
+
 data/*.jsonl
+data/*.json
 data/*.db
+data/*.db-*
 data/*.log
+server/*.db
+server/*.db-*

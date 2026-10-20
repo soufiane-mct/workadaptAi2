@@ -1,8 +1,17 @@
 import json
+import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if getattr(sys, "frozen", False):
+    PROJECT_ROOT = Path(sys.executable).resolve().parent
+    BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", PROJECT_ROOT))
+else:
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    BUNDLE_DIR = PROJECT_ROOT
+
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config.json"
+if not DEFAULT_CONFIG_PATH.exists() and (BUNDLE_DIR / "config.json").exists():
+    DEFAULT_CONFIG_PATH = BUNDLE_DIR / "config.json"
 
 DEFAULTS = {
     "schema_version": 3,
@@ -10,8 +19,10 @@ DEFAULTS = {
     "idle_threshold_seconds": 180,
     "output_file": "data/workadapt_events_v3.jsonl",
     "database_file": "data/agent_state.db",
+    "log_file": "data/agent.log",
     "role": "general",
     "device_name": "",
+    "catalogs": "catalogs",
     "collect": {
         "window": True,
         "idle": True,
@@ -30,7 +41,9 @@ DEFAULTS = {
         "redact_titles": False,
         "exclude_apps": [],
         "exclude_domains": [],
+        "drop_excluded_apps": True,
         "hash_paths": True,
+        "rotate_daily": True,
         "retention_days": 30,
         "keystroke_content": False,
     },
@@ -38,7 +51,10 @@ DEFAULTS = {
     "sync": {
         "enabled": False,
         "endpoint": "",
+        "batch_size": 500,
         "batch_seconds": 60,
+        "timeout_seconds": 20,
+        "verify_tls": True,
     },
 }
 
@@ -82,6 +98,10 @@ class Config:
     @property
     def database_path(self):
         return self._resolve(self._data["database_file"])
+
+    @property
+    def log_path(self):
+        return self._resolve(self._data["log_file"])
 
     @staticmethod
     def _resolve(value):

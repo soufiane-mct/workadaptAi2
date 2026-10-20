@@ -24,6 +24,11 @@ class ActivityCollector:
         self.collect = config.get("collect", {})
         self.privacy = config.get("privacy", {})
         self.exclude_apps = [a.lower() for a in self.privacy.get("exclude_apps", [])]
+        self.drop_excluded_apps = self.privacy.get("drop_excluded_apps", True)
+        self.input_enabled = bool(
+            self.collect.get("keyboard_metrics")
+            or self.collect.get("mouse_metrics")
+        )
 
         self.window_segment = None
         self.idle_segment = None
@@ -66,7 +71,9 @@ class ActivityCollector:
         now = now or utc_now()
         events = []
         if self.window_segment is not None:
-            events.append(self._close_window(now))
+            closed = self._close_window(now)
+            if closed is not None:
+                events.append(closed)
         if self.idle_segment is not None:
             events.append(self._close_idle(now))
         return events
@@ -97,7 +104,9 @@ class ActivityCollector:
         same_window = segment["app"] == app and segment["title"] == title
 
         if not same_window or segment["status"] != status:
-            events.append(self._close_window(now))
+            closed = self._close_window(now)
+            if closed is not None:
+                events.append(closed)
             self.window_segment = self._new_window_segment(window, status, now)
 
         return events
@@ -111,14 +120,59 @@ class ActivityCollector:
             "title": title,
             "pid": window.pid if window else None,
             "status": status,
+            "input_start": self._input_counters(),
         }
 
-    def _redact_title(self, app, title):
-        if app.lower() in self.exclude_apps:
-            return "[excluded]"
+    def _is_excluded(self, app):
+        return (app or "").lower() in self.exclude_apps
+
+    def _redact_title(self, title):
         if self.privacy.get("redact_titles"):
             return "[redacted]"
         return title
+
+    def _input_counters(self):
+        if not self.input_enabled:
+            return None
+        function = getattr(self.probe, "get_input_counters", None)
+        if function is None:
+            return None
+        return self._safe(function)
+
+    def _input_delta(self, segment):
+        if not self.input_enabled:
+            return None
+        start = segment.get("input_start")
+        end = self._input_counters()
+        if not start or not end:
+            return None
+
+        data = {}
+        if self.collect.get("keyboard_metrics"):
+            data["keys"] = max(
+                int(end.get("keys", 0)) - int(start.get("keys", 0)), 0
+            )
+        if self.collect.get("mouse_metrics"):
+            data["clicks"] = max(
+                int(end.get("clicks", 0)) - int(start.get("clicks", 0)), 0
+            )
+            data["moves"] = max(
+                int(end.get("moves", 0)) - int(start.get("moves", 0)), 0
+            )
+        return data or None
+
+    def _excluded_enrichment(self):
+        return {
+            "tool": "excluded",
+            "vendor": None,
+            "category": "excluded",
+            "domains": [],
+            "document": {"type": None, "extension": None},
+            "programming_language": None,
+            "tasks": [],
+            "role": self.enricher.role_for_idle(self.declared_role),
+            "confidence": 0.0,
+        }
 
     def _context(self):
         context = {"os": self._safe(self.probe.get_os_name)}
@@ -135,10 +189,20 @@ class ActivityCollector:
         duration = max((end - segment["start"]).total_seconds(), 0.0)
 
         app = segment["app"]
-        title = self._redact_title(app, segment["title"])
-        enriched = self.enricher.enrich_window(
-            app, segment["title"], self.declared_role
-        )
+
+        if self._is_excluded(app):
+            if self.drop_excluded_apps:
+                return None
+            app = "[excluded]"
+            title = "[excluded]"
+            enriched = self._excluded_enrichment()
+        else:
+            title = self._redact_title(segment["title"])
+            enriched = self.enricher.enrich_window(
+                app, segment["title"], self.declared_role
+            )
+
+        input_data = self._input_delta(segment)
 
         payload = {
             "source": "workadapt_agent",
@@ -148,7 +212,7 @@ class ActivityCollector:
             "title": title,
         }
 
-        return {
+        record = {
             "event_id": _make_event_id(payload),
             "source": "workadapt_agent",
             "schema_version": self.schema_version,
@@ -183,6 +247,11 @@ class ActivityCollector:
             },
             "collected_at": utc_now().isoformat(),
         }
+
+        if input_data is not None:
+            record["input"] = input_data
+
+        return record
 
     def _close_idle(self, end):
         segment = self.idle_segment

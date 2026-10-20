@@ -4,8 +4,10 @@
   "idle_threshold_seconds": 180,
   "output_file": "data/workadapt_events_v3.jsonl",
   "database_file": "data/agent_state.db",
+  "log_file": "data/agent.log",
   "catalogs": "catalogs",
   "role": "general",
+  "device_name": "",
   "collect": {
     "window": true,
     "idle": true,
@@ -24,13 +26,18 @@
     "redact_titles": false,
     "exclude_apps": [],
     "exclude_domains": [],
+    "drop_excluded_apps": true,
     "hash_paths": true,
+    "rotate_daily": true,
     "retention_days": 30,
     "keystroke_content": false
   },
   "sync": {
     "enabled": false,
     "endpoint": "",
-    "batch_seconds": 60
+    "batch_size": 500,
+    "batch_seconds": 60,
+    "timeout_seconds": 20,
+    "verify_tls": true
   }
 }

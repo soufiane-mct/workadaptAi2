@@ -10,6 +10,11 @@ from .tools import ToolResolver
 class Enricher:
     def __init__(self, config):
         self.collect = config.get("collect", {}) or {}
+        self.privacy = config.get("privacy", {}) or {}
+        self.exclude_domains = {
+            str(domain).lower()
+            for domain in self.privacy.get("exclude_domains", []) or []
+        }
         catalogs = CatalogSet(config.get("catalogs"))
 
         self.tools = ToolResolver(catalogs.apps)
@@ -21,7 +26,12 @@ class Enricher:
 
     def enrich_window(self, app, title, declared_role):
         tool_info = self.tools.resolve(app)
-        document = self.documents.resolve(title, app)
+        document = self.documents.resolve(
+            title,
+            app,
+            include_file=self.collect.get("files", True),
+            hash_paths=self.privacy.get("hash_paths", True),
+        )
         domains = list(tool_info["domains"])
 
         if self.collect.get("domains", False):
@@ -34,6 +44,13 @@ class Enricher:
                 for domain in web.get("domains", []):
                     if domain not in domains:
                         domains.append(domain)
+
+        if self.exclude_domains:
+            domains = [
+                domain
+                for domain in domains
+                if domain.lower() not in self.exclude_domains
+            ]
 
         programming_language = None
         if self.collect.get("programming_language", True):

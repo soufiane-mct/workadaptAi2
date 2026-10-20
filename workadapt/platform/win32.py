@@ -46,6 +46,25 @@ class LASTINPUTINFO(ctypes.Structure):
 class Win32Probe(PlatformProbe):
     name = "win32"
 
+    def __init__(self, config=None):
+        super().__init__(config)
+        self._input_monitor = None
+
+    def get_input_counters(self):
+        if self._input_monitor is None:
+            from .input_win32 import InputMonitor
+
+            self._input_monitor = InputMonitor()
+            if not self._input_monitor.start():
+                self._input_monitor = None
+                return None
+        return self._input_monitor.counters()
+
+    def close(self):
+        if self._input_monitor is not None:
+            self._input_monitor.stop()
+            self._input_monitor = None
+
     def get_os_name(self):
         return "windows"
 
