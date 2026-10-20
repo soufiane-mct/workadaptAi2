@@ -1,4 +1,5 @@
 import argparse
+import html
 import json
 import logging
 import os
@@ -106,6 +107,84 @@ class EventDatabase:
             self._connection.close()
 
 
+def _minutes(seconds):
+    return f"{float(seconds or 0) / 60:.1f} min"
+
+
+def _bucket_table(bucket):
+    if not bucket:
+        return "<p class='muted'>—</p>"
+    rows = "".join(
+        f"<tr><td>{html.escape(str(name))}</td>"
+        f"<td class='num'>{_minutes(value)}</td></tr>"
+        for name, value in bucket.items()
+    )
+    return f"<table><tbody>{rows}</tbody></table>"
+
+
+def dashboard_html(days):
+    if not days:
+        body = "<p class='muted'>Aucun événement.</p>"
+    else:
+        sections = []
+        for day, stats in sorted(days.items(), reverse=True):
+            sections.append(
+                f"""
+                <section class="card">
+                  <h2>{html.escape(day)}</h2>
+                  <div class="kpis">
+                    <div><span class="kpi">{stats['active_minutes']}</span><span class="label">min actif</span></div>
+                    <div><span class="kpi">{stats['inactive_minutes']}</span><span class="label">min inactif</span></div>
+                    <div><span class="kpi">{stats['window_events']}</span><span class="label">fenêtres</span></div>
+                    <div><span class="kpi">{stats['input']['keys']}</span><span class="label">touches</span></div>
+                  </div>
+                  <div class="grid">
+                    <div><h3>Outils</h3>{_bucket_table(stats['tools'])}</div>
+                    <div><h3>Domaines</h3>{_bucket_table(stats['domains'])}</div>
+                    <div><h3>Tâches</h3>{_bucket_table(stats['tasks'])}</div>
+                    <div><h3>Rôles</h3>{_bucket_table(stats['roles'])}</div>
+                    <div><h3>Langages</h3>{_bucket_table(stats['programming_languages'])}</div>
+                    <div><h3>Applications</h3>{_bucket_table(stats['apps'])}</div>
+                  </div>
+                </section>
+                """
+            )
+        body = "".join(sections)
+
+    return f"""<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WorkAdapt</title>
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{ margin: 0; padding: 24px; font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }}
+  header {{ max-width: 1100px; margin: 0 auto 16px; }}
+  h1 {{ margin: 0 0 4px; font-size: 1.4rem; }}
+  .muted {{ opacity: .6; }}
+  .card {{ max-width: 1100px; margin: 0 auto 16px; background: #1e293b; border-radius: 12px; padding: 16px; }}
+  h2 {{ margin: 0 0 12px; font-size: 1.1rem; }}
+  h3 {{ margin: 0 0 8px; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; opacity: .7; }}
+  .kpis {{ display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 16px; }}
+  .kpi {{ display: block; font-size: 1.4rem; font-weight: 600; }}
+  .label {{ font-size: .75rem; opacity: .6; }}
+  .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: .85rem; }}
+  td {{ padding: 4px 0; border-bottom: 1px solid #334155; }}
+  td.num {{ text-align: right; white-space: nowrap; }}
+</style>
+</head>
+<body>
+<header>
+  <h1>WorkAdapt</h1>
+  <p class="muted">Résumé local — les données ne quittent pas la machine par défaut.</p>
+</header>
+{body}
+</body>
+</html>"""
+
+
 class RequestHandler(BaseHTTPRequestHandler):
     server_version = "WorkAdaptServer/1.0"
 
@@ -117,11 +196,22 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_html(self, status, body):
+        data = body.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def _authorized(self):
         token = getattr(self.server, "token", "")
         if not token:
             return True
-        return self.headers.get("Authorization", "") == f"Bearer {token}"
+        if self.headers.get("Authorization", "") == f"Bearer {token}":
+            return True
+        query = parse_qs(urlparse(self.path).query)
+        return query.get("token", [None])[0] == token
 
     def do_POST(self):
         parsed = urlparse(self.path)
@@ -153,19 +243,26 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/favicon.ico":
+            self.send_response(204)
+            self.end_headers()
+            return
         if parsed.path == "/health":
             return self._send(200, {"status": "ok"})
         if not self._authorized():
             return self._send(401, {"error": "unauthorized"})
+
+        day = parse_qs(parsed.query).get("day", [None])[0]
         if parsed.path == "/api/v1/events":
-            day = parse_qs(parsed.query).get("day", [None])[0]
             return self._send(
                 200, {"events": self.server.database.events(day)}
             )
         if parsed.path == "/api/v1/summary":
-            day = parse_qs(parsed.query).get("day", [None])[0]
             days = aggregate_events(self.server.database.events(day))
             return self._send(200, {"day": day, "days": days})
+        if parsed.path in ("/", "/dashboard"):
+            days = aggregate_events(self.server.database.events(day))
+            return self._send_html(200, dashboard_html(days))
         return self._send(404, {"error": "not found"})
 
     def log_message(self, fmt, *args):

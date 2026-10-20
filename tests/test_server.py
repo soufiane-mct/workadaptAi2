@@ -83,3 +83,26 @@ def test_ingest_dedup_and_summary(server):
 
 def test_health(server):
     assert get(f"{server}/health") == {"status": "ok"}
+
+
+def test_dashboard_renders_summary(server):
+    post(f"{server}/api/v1/events", {"events": [sample_event()]}, "secret")
+
+    with urllib.request.urlopen(f"{server}/?token=secret") as response:
+        page = response.read().decode("utf-8")
+
+    assert response.status == 200
+    assert "WorkAdapt" in page
+    assert "2026-10-19" in page
+    assert "EXCEL.EXE" in page
+
+
+def test_dashboard_requires_token(server):
+    with pytest.raises(urllib.error.HTTPError) as error:
+        urllib.request.urlopen(f"{server}/")
+    assert error.value.code == 401
+
+
+def test_favicon(server):
+    with urllib.request.urlopen(f"{server}/favicon.ico") as response:
+        assert response.status == 204

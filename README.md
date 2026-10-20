@@ -95,6 +95,7 @@ python -m server.app --host 127.0.0.1 --port 8787
 
 Endpoints :
 
+- `GET /` ou `/dashboard` — tableau de bord HTML (`.?token=...` si auth)
 - `POST /api/v1/events` — `{"schema_version": 3, "events": [...]}`
 - `GET /api/v1/summary?day=YYYY-MM-DD`
 - `GET /api/v1/events?day=YYYY-MM-DD`
