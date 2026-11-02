@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import sqlite3
+import ssl
 import sys
 import threading
 from datetime import datetime, timezone
@@ -15,6 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from workadapt.export import summary_csv_text  # noqa: E402
 from workadapt.summary import aggregate_events  # noqa: E402
 
 logger = logging.getLogger("workadapt.server")
@@ -204,6 +206,17 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _send_csv(self, status, body):
+        data = ("\ufeff" + body).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/csv; charset=utf-8")
+        self.send_header(
+            "Content-Disposition", 'attachment; filename="workadapt_summary.csv"'
+        )
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def _authorized(self):
         token = getattr(self.server, "token", "")
         if not token:
@@ -260,6 +273,9 @@ class RequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/v1/summary":
             days = aggregate_events(self.server.database.events(day))
             return self._send(200, {"day": day, "days": days})
+        if parsed.path in ("/api/v1/export.csv", "/api/v1/summary.csv"):
+            days = aggregate_events(self.server.database.events(day))
+            return self._send_csv(200, summary_csv_text(days))
         if parsed.path in ("/", "/dashboard"):
             days = aggregate_events(self.server.database.events(day))
             return self._send_html(200, dashboard_html(days))
@@ -269,8 +285,12 @@ class RequestHandler(BaseHTTPRequestHandler):
         logger.info("%s - %s", self.address_string(), fmt % args)
 
 
-def create_server(host, port, database, token=""):
+def create_server(host, port, database, token="", certfile=None, keyfile=None):
     httpd = ThreadingHTTPServer((host, port), RequestHandler)
+    if certfile:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(certfile, keyfile)
+        httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
     httpd.database = EventDatabase(database)
     httpd.token = token
     return httpd
@@ -287,6 +307,8 @@ def main(argv=None):
     parser.add_argument(
         "--token", default=os.environ.get("WORKADAPT_TOKEN", "")
     )
+    parser.add_argument("--cert", default=None, help="certificat TLS (PEM)")
+    parser.add_argument("--key", default=None, help="clé privée TLS (PEM)")
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -294,9 +316,13 @@ def main(argv=None):
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    httpd = create_server(args.host, args.port, args.db, args.token)
+    httpd = create_server(
+        args.host, args.port, args.db, args.token, args.cert, args.key
+    )
+    scheme = "https" if args.cert else "http"
     logger.info(
-        "WorkAdapt server sur http://%s:%d (db=%s, auth=%s)",
+        "WorkAdapt server sur %s://%s:%d (db=%s, auth=%s)",
+        scheme,
         args.host,
         args.port,
         args.db,

@@ -35,7 +35,6 @@ DEFAULTS = {
         "domains": False,
         "files": True,
         "programming_language": True,
-        "file_metadata": False,
     },
     "privacy": {
         "redact_titles": False,
@@ -45,7 +44,6 @@ DEFAULTS = {
         "hash_paths": True,
         "rotate_daily": True,
         "retention_days": 30,
-        "keystroke_content": False,
     },
     "catalogs": "catalogs",
     "sync": {

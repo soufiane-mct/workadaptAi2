@@ -3,8 +3,12 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $root
 
 $python = "python"
-if (Test-Path -LiteralPath (Join-Path $root ".venv\Scripts\python.exe")) {
-    $python = Join-Path $root ".venv\Scripts\python.exe"
+foreach ($candidate in @(".venv-build", ".venv")) {
+    $path = Join-Path $root "$candidate\Scripts\python.exe"
+    if (Test-Path -LiteralPath $path) {
+        $python = $path
+        break
+    }
 }
 
 & $python -m pip install --upgrade pyinstaller

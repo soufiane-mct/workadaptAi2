@@ -36,6 +36,23 @@ def test_files_can_be_disabled(make_enricher):
     assert "file" not in result["document"]
 
 
+def test_tools_can_be_disabled(make_enricher):
+    enricher = make_enricher(collect={"tools": False})
+    result = enricher.enrich_window("excel.exe", "Budget.xlsx", "general")
+    assert result["tool"] == "excel"
+    assert result["vendor"] is None
+    assert result["domains"] == []
+    assert result["category"] == "other"
+
+
+def test_documents_can_be_disabled_but_files_kept(make_enricher):
+    enricher = make_enricher(collect={"documents": False})
+    result = enricher.enrich_window("excel.exe", "Budget.xlsx", "general")
+    assert result["document"]["type"] is None
+    assert result["document"]["extension"] is None
+    assert "name_hash" in result["document"]["file"]
+
+
 def test_programming_language(make_enricher):
     enricher = make_enricher()
     result = enricher.enrich_window(

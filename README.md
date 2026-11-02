@@ -12,11 +12,17 @@ python .\workadapt_agent.py
 
 Aucune dépendance externe pour l'agent (stdlib Python uniquement).
 
-Résumé hors ligne :
+Résumé et export hors ligne :
 
 ```powershell
 python .\workadapt_agent.py --summary
+python .\workadapt_agent.py --export-csv
+python .\workadapt_agent.py --export-csv C:\exports\workadapt.csv
+python .\workadapt_agent.py --doctor
 ```
+
+`--doctor` vérifie l'OS, les permissions, la fenêtre courante, l'idle, les
+hooks, les chemins et les catalogues.
 
 ## Configuration
 
@@ -45,7 +51,8 @@ Tout est dans `config.json` :
 - `hash_paths` : hache le nom de fichier (SHA-256 tronqué) ; sinon nom brut
 - `rotate_daily` : un fichier JSONL par jour (`workadapt_events_v3-YYYY-MM-DD`)
 - `retention_days` : purge auto des lignes SQLite et des fichiers anciens
-- `keystroke_content` : toujours `false` — jamais de contenu
+
+Aucune frappe, aucun texte, aucune capture d'écran, aucun presse-papiers.
 
 Aucune frappe, aucun texte, aucune capture d'écran, aucun presse-papiers.
 
@@ -98,8 +105,16 @@ Endpoints :
 - `GET /` ou `/dashboard` — tableau de bord HTML (`.?token=...` si auth)
 - `POST /api/v1/events` — `{"schema_version": 3, "events": [...]}`
 - `GET /api/v1/summary?day=YYYY-MM-DD`
+- `GET /api/v1/export.csv?day=YYYY-MM-DD` — export CSV
 - `GET /api/v1/events?day=YYYY-MM-DD`
 - `GET /health`
+
+Production : TLS + token.
+
+```powershell
+$env:WORKADAPT_TOKEN = "change-me"
+python -m server.app --host 0.0.0.0 --port 8787 --cert server.crt --key server.key
+```
 
 ## Exécution autonome (Windows)
 
@@ -109,6 +124,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
 
 # 2) Installer au démarrage de session (Tâche planifiée)
 powershell -ExecutionPolicy Bypass -File .\scripts\install_windows.ps1
+
+# Variante : installer mais laisser désactivé (puis activer manuellement)
+powershell -ExecutionPolicy Bypass -File .\scripts\install_windows.ps1 -Disabled
 
 # Désinstaller
 powershell -ExecutionPolicy Bypass -File .\scripts\uninstall_windows.ps1
@@ -137,6 +155,7 @@ workadapt/
   core.py                    boucle de l'agent
   logging_setup.py           logs rotatifs (data/agent.log)
   summary.py                 agrégation / résumé quotidien
+  export.py                  export CSV des agrégats
   platform/                  abstraction OS (base, win32, macos, linux)
   platform/input_win32.py    hooks clavier/souris (opt-in)
   collectors/activity.py     segments fenêtre + inactivité

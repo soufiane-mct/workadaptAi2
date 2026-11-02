@@ -25,13 +25,32 @@ class Enricher:
         self.programming = ProgrammingLanguageDetector()
 
     def enrich_window(self, app, title, declared_role):
-        tool_info = self.tools.resolve(app)
+        if self.collect.get("tools", True):
+            tool_info = self.tools.resolve(app)
+        else:
+            fallback = app or "unknown"
+            if fallback.lower().endswith(".exe"):
+                fallback = fallback[:-4]
+            tool_info = {
+                "tool": fallback,
+                "vendor": None,
+                "domains": [],
+                "category": "other",
+                "matched": False,
+            }
+
         document = self.documents.resolve(
             title,
             app,
             include_file=self.collect.get("files", True),
             hash_paths=self.privacy.get("hash_paths", True),
         )
+        if not self.collect.get("documents", True):
+            file_info = document.get("file")
+            document = {"type": None, "extension": None}
+            if file_info:
+                document["file"] = file_info
+
         domains = list(tool_info["domains"])
 
         if self.collect.get("domains", False):

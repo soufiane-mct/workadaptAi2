@@ -103,6 +103,19 @@ def test_dashboard_requires_token(server):
     assert error.value.code == 401
 
 
+def test_csv_export(server):
+    post(f"{server}/api/v1/events", {"events": [sample_event()]}, "secret")
+
+    with urllib.request.urlopen(
+        f"{server}/api/v1/export.csv?token=secret"
+    ) as response:
+        body = response.read().decode("utf-8-sig")
+
+    assert response.status == 200
+    assert "dimension,name,minutes" in body
+    assert "EXCEL.EXE" in body
+
+
 def test_favicon(server):
     with urllib.request.urlopen(f"{server}/favicon.ico") as response:
         assert response.status == 204

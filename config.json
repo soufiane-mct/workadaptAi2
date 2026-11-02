@@ -19,8 +19,7 @@
     "tasks": true,
     "domains": false,
     "files": true,
-    "programming_language": true,
-    "file_metadata": false
+    "programming_language": true
   },
   "privacy": {
     "redact_titles": false,
@@ -29,8 +28,7 @@
     "drop_excluded_apps": true,
     "hash_paths": true,
     "rotate_daily": true,
-    "retention_days": 30,
-    "keystroke_content": false
+    "retention_days": 30
   },
   "sync": {
     "enabled": false,

@@ -1,6 +1,7 @@
 param(
     [string]$ExePath = "",
-    [string]$TaskName = "WorkAdaptAgent"
+    [string]$TaskName = "WorkAdaptAgent",
+    [switch]$Disabled
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,6 +35,12 @@ Register-ScheduledTask `
     -Description "WorkAdapt activity agent" `
     -Force | Out-Null
 
-Start-ScheduledTask -TaskName $TaskName
-Write-Host "Tache '$TaskName' installee et demarree."
+if ($Disabled) {
+    Disable-ScheduledTask -TaskName $TaskName | Out-Null
+    Write-Host "Tache '$TaskName' installee mais desactivee."
+    Write-Host "Activer: Enable-ScheduledTask -TaskName $TaskName; Start-ScheduledTask -TaskName $TaskName"
+} else {
+    Start-ScheduledTask -TaskName $TaskName
+    Write-Host "Tache '$TaskName' installee et demarree."
+}
 Write-Host "Donnees et logs: $workdir\data"
