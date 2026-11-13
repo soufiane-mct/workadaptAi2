@@ -1,0 +1,183 @@
+<div class="wa-page">
+  <wa-page-header
+    title="Mon parcours de formation"
+    subtitle="Un parcours combine plusieurs des sept formats prévus par le cahier des charges. Il n’est accessible qu’après validation du superviseur, puis se conclut par une évaluation et une certification interne."
+  >
+    <span class="wa-chip wa-chip--warning">Validation humaine requise</span>
+    <a mat-stroked-button routerLink="/app/formations">Les 7 formats de formation</a>
+  </wa-page-header>
+
+  @for (course of courses(); track course.id) {
+    <div class="wa-card course">
+      <div class="course__head">
+        <div class="course__title-block">
+          <div class="course__title">{{ course.title }}</div>
+          <div class="course__summary">{{ course.summary }}</div>
+          <div class="course__tags">
+            @for (skill of course.skills; track skill) {
+              <span class="wa-chip wa-chip--info">{{ skill }}</span>
+            }
+            <span class="wa-chip wa-chip--neutral">
+              {{ course.durationMinutes / 60 | number: '1.0-1' }} h
+            </span>
+            <span class="wa-chip wa-chip--neutral">
+              niveau {{ course.levelFrom }} → {{ course.levelTo }}
+            </span>
+          </div>
+        </div>
+        <div class="course__aside">
+          <wa-status [status]="course.status" [labels]="statusLabels" />
+          <div class="wa-small wa-muted">créé le {{ course.createdAt | date: 'dd/MM/yyyy' }}</div>
+        </div>
+      </div>
+
+      <div class="course__progress">
+        <div class="course__progress-head">
+          <span>{{ course.progress }} %</span>
+          <span class="wa-small wa-muted">{{ course.modules.length }} étapes</span>
+        </div>
+        <mat-progress-bar mode="determinate" [value]="course.progress" />
+      </div>
+
+      <!-- Tableau de démonstration du CDC §5.X.1 : étape, format, activité. -->
+      <div class="overview">
+        <div class="overview__head">
+          <div class="overview__title">Vue d’ensemble du parcours</div>
+          <div class="wa-small wa-muted">
+            Toutes les étapes ne sont pas obligatoires : l’IA sélectionne les formats pertinents.
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="wa-table steps-table">
+            <thead>
+              <tr>
+                <th class="col-step">Étape</th>
+                <th>Type de formation</th>
+                <th>Activité de l’employé</th>
+                <th class="col-status">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (module of course.modules; track module.order) {
+                <tr>
+                  <td class="col-step">{{ module.order }}</td>
+                  <td>
+                    <span class="format-pill">
+                      <span class="material-symbols-outlined">{{ formatIcons[module.format] }}</span>
+                      {{ formatLabels[module.format] }}
+                    </span>
+                  </td>
+                  <td>{{ module.activity }}</td>
+                  <td class="col-status">
+                    <span [class]="statusTone(module.status)">{{ statusLabel(module.status) }}</span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modules-title">Détail des étapes</div>
+      <ol class="modules">
+        @for (module of course.modules; track module.order) {
+          <li class="module">
+            <div class="module__icon">
+              <span class="material-symbols-outlined">{{ formatIcons[module.format] }}</span>
+            </div>
+
+            <div class="module__body">
+              <div class="module__row">
+                <span class="module__title">{{ module.order }}. {{ module.title }}</span>
+                <span [class]="statusTone(module.status)">{{ statusLabel(module.status) }}</span>
+              </div>
+              <div class="module__meta">
+                {{ formatLabels[module.format] }} · {{ module.durationMinutes }} min
+              </div>
+              <div class="module__activity">{{ module.activity }}</div>
+              <ul class="objectives">
+                @for (objective of module.objectives; track objective) {
+                  <li>{{ objective }}</li>
+                }
+              </ul>
+              @if (module.progress > 0 && module.progress < 100) {
+                <mat-progress-bar
+                  class="module__bar"
+                  mode="determinate"
+                  [value]="module.progress"
+                />
+              }
+            </div>
+
+            <button
+              mat-stroked-button
+              type="button"
+              class="module__action"
+              [disabled]="
+                course.status !== 'IN_PROGRESS' ||
+                module.status === 'LOCKED' ||
+                module.status === 'DONE'
+              "
+              (click)="advance(course.id, module.order, module.progress)"
+            >
+              {{
+                course.status !== 'IN_PROGRESS'
+                  ? 'En attente de validation'
+                  : module.status === 'DONE'
+                    ? 'Terminé'
+                    : module.status === 'IN_PROGRESS'
+                      ? 'Continuer'
+                      : module.status === 'AVAILABLE'
+                        ? 'Commencer'
+                        : 'Verrouillé'
+              }}
+            </button>
+          </li>
+        }
+      </ol>
+    </div>
+  }
+
+  @if (activeCourse(); as course) {
+    <div class="wa-card evaluation">
+      <div class="evaluation__head">
+        <div class="evaluation__icon">
+          <span class="material-symbols-outlined">verified</span>
+        </div>
+        <div class="evaluation__titles">
+          <div class="evaluation__title">Évaluation finale et certification</div>
+          <p>
+            La fin d’une formation ne signifie pas automatiquement que la compétence est maîtrisée.
+            Ce processus, distinct des sept formats, vérifie les acquis puis met à jour le profil.
+          </p>
+        </div>
+        <div class="evaluation__aside">
+          <span class="wa-chip wa-chip--info">Seuil du quiz : 75 %</span>
+          @if (!evaluationReady()) {
+            <span class="wa-chip wa-chip--neutral">Parcours à {{ course.progress }} %</span>
+          }
+        </div>
+      </div>
+
+      <ol class="pipeline">
+        @for (stage of pipeline(); track stage.code; let index = $index) {
+          <li class="pipeline__step">
+            <span class="pipeline__num">{{ index + 1 }}</span>
+            <span class="pipeline__label">{{ stage.label }}</span>
+            <span class="pipeline__desc">{{ stage.description }}</span>
+          </li>
+        }
+      </ol>
+
+      <div class="evaluation__foot">
+        <span class="wa-small wa-muted">
+          Quiz final → évaluation pratique → feedback IA → rapport → certificat éventuel →
+          recommandations.
+        </span>
+        <a mat-flat-button color="primary" [routerLink]="evaluationCta(course.id)">
+          Passer l’évaluation finale
+        </a>
+      </div>
+    </div>
+  }
+</div>

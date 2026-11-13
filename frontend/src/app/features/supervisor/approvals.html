@@ -1,0 +1,139 @@
+<div class="wa-page">
+  <wa-page-header
+    title="Validations en attente"
+    subtitle="Aucun parcours n’est lancé sans validation humaine. Vous pouvez approuver, rejeter ou demander une modification ; la décision et sa date sont enregistrées."
+  >
+    <div class="filters">
+      <button
+        mat-stroked-button
+        type="button"
+        [class.active]="filter() === 'PENDING'"
+        (click)="filter.set('PENDING')"
+      >
+        En attente ({{ pendingCount() }})
+      </button>
+      <button
+        mat-stroked-button
+        type="button"
+        [class.active]="filter() === 'ALL'"
+        (click)="filter.set('ALL')"
+      >
+        Toutes
+      </button>
+    </div>
+  </wa-page-header>
+
+  @if (visible().length === 0) {
+    <div class="wa-card wa-empty">
+      Aucune demande en attente. Toutes les propositions ont été traitées.
+    </div>
+  }
+
+  @for (request of visible(); track request.id) {
+    <div class="wa-card request">
+      <div class="request__head">
+        <div>
+          <div class="request__employee">{{ request.employee }}</div>
+          <div class="request__role">{{ request.jobTitle }} · demande {{ request.id }}</div>
+        </div>
+        <div class="request__aside">
+          <span [class]="statusClass(request.status)">{{ statusLabel(request.status) }}</span>
+          <span class="wa-small wa-muted">{{ request.requestedAt | date: 'dd/MM/yyyy' }}</span>
+        </div>
+      </div>
+
+      <div class="request__title">{{ request.courseTitle }}</div>
+
+      <div class="request__facts">
+        <div class="fact">
+          <div class="fact__label">Compétences visées</div>
+          <div class="fact__value">
+            @for (skill of request.skills; track skill) {
+              <span class="wa-chip wa-chip--info">{{ skill }}</span>
+            }
+          </div>
+        </div>
+        <div class="fact">
+          <div class="fact__label">Progression attendue</div>
+          <div class="fact__value">{{ request.levelFrom }} → {{ request.levelTo }} / 100</div>
+        </div>
+        <div class="fact">
+          <div class="fact__label">Durée estimée</div>
+          <div class="fact__value">{{ request.durationMinutes / 60 | number: '1.0-1' }} h</div>
+        </div>
+      </div>
+
+      <div class="justification">
+        <div class="justification__title">
+          <span class="material-symbols-outlined">lightbulb</span>
+          Pourquoi cette recommandation
+        </div>
+        <p>{{ request.justification }}</p>
+      </div>
+
+      @if (request.status === 'PENDING') {
+        <div class="request__actions">
+          <button mat-stroked-button type="button" (click)="decide(request, 'CHANGES_REQUESTED')">
+            Demander une modification
+          </button>
+          <button mat-stroked-button type="button" (click)="decide(request, 'REJECTED')">
+            Rejeter
+          </button>
+          <button mat-flat-button type="button" (click)="decide(request, 'APPROVED')">
+            Approuver le parcours
+          </button>
+        </div>
+      }
+    </div>
+  }
+
+  <div class="wa-card wa-section">
+    <div class="wa-card__title">Suivi de la progression de l’équipe</div>
+    <div class="wa-card__subtitle">
+      Parcours en cours, formations terminées et derniers résultats autorisés.
+    </div>
+
+    <table class="wa-table">
+      <thead>
+        <tr>
+          <th>Collaborateur</th>
+          <th>Parcours en cours</th>
+          <th>Progression</th>
+          <th>Formations terminées</th>
+          <th>Dernier quiz</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (member of team(); track member.id) {
+          <tr>
+            <td>
+              <strong>{{ member.name }}</strong>
+              <div class="member-role">{{ member.jobTitle }}</div>
+            </td>
+            <td class="wa-muted">{{ member.activeCourse ?? '—' }}</td>
+            <td class="cell-progress">
+              @if (member.activeCourse && member.courseProgress > 0) {
+                <div class="progress-cell">
+                  <div class="progress-track">
+                    <div class="progress-fill" [style.width.%]="member.courseProgress"></div>
+                  </div>
+                  <span class="wa-small">{{ member.courseProgress }} %</span>
+                </div>
+              } @else {
+                <span class="wa-small wa-muted">non démarré</span>
+              }
+            </td>
+            <td>{{ member.coursesCompleted }}</td>
+            <td>
+              @if (member.lastAssessment !== undefined) {
+                <span class="wa-chip wa-chip--success">{{ member.lastAssessment }} %</span>
+              } @else {
+                <span class="wa-small wa-muted">—</span>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>

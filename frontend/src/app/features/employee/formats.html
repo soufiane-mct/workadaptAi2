@@ -1,0 +1,76 @@
+<div class="wa-page">
+  <wa-page-header
+    title="Les 7 formats de formation"
+    subtitle="WorkAdapt AI ne propose pas le même parcours à tous les employés : l’IA sélectionne les méthodes d’apprentissage les plus adaptées au profil, au niveau et aux objectifs. Un parcours peut combiner plusieurs formats."
+  >
+    <a mat-stroked-button routerLink="/app/parcours">Voir mon parcours</a>
+  </wa-page-header>
+
+  <div class="wa-card intro">
+    <span class="material-symbols-outlined intro__icon">auto_awesome</span>
+    <div>
+      <div class="intro__title">Un parcours, plusieurs formats</div>
+      <p>
+        Les sept formats ne sont pas obligatoires séparément. L’IA les combine selon les
+        compétences à développer, le niveau actuel, les difficultés identifiées, les objectifs
+        professionnels et les ressources disponibles. Un employé qui maîtrise déjà la théorie peut
+        commencer directement par la pratique.
+      </p>
+    </div>
+  </div>
+
+  <div class="formats-grid">
+    @for (format of formats(); track format.code; let index = $index) {
+      <article class="wa-card format" [attr.data-accent]="format.accent">
+        <header class="format__head">
+          <div class="format__icon">
+            <span class="material-symbols-outlined">{{ format.icon }}</span>
+          </div>
+          <div class="format__titles">
+            <div class="format__eyebrow">Format {{ index + 1 }} / 7</div>
+            <h2 class="format__label">{{ format.label }}</h2>
+            <div class="format__english">{{ format.englishLabel }}</div>
+          </div>
+          @if (isUsed(format.code)) {
+            <span class="wa-chip wa-chip--success format__used">Dans votre parcours</span>
+          }
+        </header>
+
+        <p class="format__tagline">{{ format.tagline }}</p>
+        <p class="format__presentation">{{ format.presentation }}</p>
+
+        <div class="format__section">
+          <div class="format__section-title">
+            <span class="material-symbols-outlined">list_alt</span>
+            Comment se déroule cette formation ?
+          </div>
+          <ol class="format__steps">
+            @for (step of format.howItWorks; track step) {
+              <li>{{ step }}</li>
+            }
+          </ol>
+        </div>
+
+        <div class="format__section">
+          <div class="format__section-title">
+            <span class="material-symbols-outlined">smart_toy</span>
+            Rôle de l’IA
+          </div>
+          <ul class="format__ai">
+            @for (role of format.aiRole; track role) {
+              <li>{{ role }}</li>
+            }
+          </ul>
+        </div>
+
+        <div class="format__example">
+          <span class="material-symbols-outlined">lightbulb</span>
+          <div>
+            <div class="format__example-title">Exemple</div>
+            <p>{{ format.example }}</p>
+          </div>
+        </div>
+      </article>
+    }
+  </div>
+</div>

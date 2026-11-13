@@ -1,0 +1,594 @@
+<div class="wa-page">
+  <wa-page-header
+    title="Évaluation finale"
+    [subtitle]="assessment().courseTitle"
+  >
+    <a mat-stroked-button routerLink="/app/parcours">Retour au parcours</a>
+  </wa-page-header>
+
+  @if ((activeCourse()?.progress ?? 0) < 100) {
+    <div class="notice">
+      <span class="material-symbols-outlined">info</span>
+      <div>
+        <strong>Mode démonstration.</strong>
+        Le parcours est à {{ activeCourse()?.progress }} %. En production, l’évaluation finale
+        n’est débloquée qu’après 100 % des étapes obligatoires.
+      </div>
+    </div>
+  }
+
+  <!-- Processus post-formation du CDC §5.X.3 -->
+  <ol class="stepper">
+    @for (stage of stages(); track stage.code; let index = $index) {
+      <li
+        class="stepper__item"
+        [class.is-current]="stage.status === 'CURRENT'"
+        [class.is-done]="stage.status === 'DONE'"
+        [class.is-locked]="stage.status === 'LOCKED'"
+      >
+        <button
+          type="button"
+          class="stepper__button"
+          [disabled]="stage.status === 'LOCKED'"
+          (click)="goTo(stage.code)"
+        >
+          <span class="stepper__num">{{ index + 1 }}</span>
+          <span class="stepper__text">
+            <span class="stepper__label">{{ stage.label }}</span>
+            <span class="stepper__desc">{{ stage.description }}</span>
+          </span>
+        </button>
+      </li>
+    }
+  </ol>
+
+  @switch (current()) {
+    @case ('QUIZ') {
+      <section class="wa-card section">
+        <div class="section__head">
+          <div>
+            <div class="section__title">1. Quiz final</div>
+            <p class="section__text">
+              Vérifiez votre compréhension des notions étudiées. Le quiz combine des questions à
+              choix multiples, vrai/faux, techniques et des situations professionnelles. Le seuil
+              de réussite est de {{ passScore() }} %.
+            </p>
+          </div>
+          <div class="section__aside">
+            <span class="wa-chip wa-chip--neutral">
+              {{ answeredCount() }} / {{ quizTotal() }} répondues
+            </span>
+            @if (quizSubmitted()) {
+              <span [class]="quizPassed() ? 'wa-chip wa-chip--success' : 'wa-chip wa-chip--danger'">
+                {{ quizScore() }} %
+              </span>
+            }
+          </div>
+        </div>
+
+        <mat-progress-bar
+          class="section__bar"
+          mode="determinate"
+          [value]="quizProgress()"
+        />
+
+        <div class="questions">
+          @for (question of assessment().quiz; track question.id; let index = $index) {
+            <fieldset class="question">
+              <legend class="question__legend">
+                <span class="question__num">{{ index + 1 }}</span>
+                <span class="wa-chip wa-chip--info">{{ typeLabels[question.type] }}</span>
+                <span class="wa-chip wa-chip--neutral">{{ question.skill }}</span>
+              </legend>
+
+              <p class="question__prompt">{{ question.prompt }}</p>
+
+              <div class="options">
+                @for (option of question.options; track option; let optionIndex = $index) {
+                  <label
+                    class="option"
+                    [class.is-selected]="answers()[question.id] === optionIndex"
+                    [class.is-correct]="quizSubmitted() && isCorrect(question.id, optionIndex)"
+                    [class.is-wrong]="
+                      quizSubmitted() &&
+                      answers()[question.id] === optionIndex &&
+                      !isCorrect(question.id, optionIndex)
+                    "
+                  >
+                    <input
+                      type="radio"
+                      class="option__input"
+                      [name]="'question-' + question.id"
+                      [checked]="answers()[question.id] === optionIndex"
+                      [disabled]="quizSubmitted()"
+                      (change)="answer(question.id, optionIndex)"
+                    />
+                    <span class="option__marker">{{ letter(optionIndex) }}</span>
+                    <span class="option__text">{{ option }}</span>
+                    @if (quizSubmitted() && isCorrect(question.id, optionIndex)) {
+                      <span class="material-symbols-outlined option__icon">check_circle</span>
+                    }
+                    @if (
+                      quizSubmitted() &&
+                      answers()[question.id] === optionIndex &&
+                      !isCorrect(question.id, optionIndex)
+                    ) {
+                      <span class="material-symbols-outlined option__icon">cancel</span>
+                    }
+                  </label>
+                }
+              </div>
+
+              @if (quizSubmitted()) {
+                <div class="question__explanation">
+                  <span class="material-symbols-outlined">lightbulb</span>
+                  <p>{{ question.explanation }}</p>
+                </div>
+              }
+            </fieldset>
+          }
+        </div>
+
+        <div class="section__foot">
+          @if (!quizSubmitted()) {
+            <span class="wa-small wa-muted">
+              Toutes les questions doivent être répondues avant la soumission.
+            </span>
+            <button
+              mat-flat-button
+              color="primary"
+              type="button"
+              [disabled]="answeredCount() < quizTotal()"
+              (click)="submitQuiz()"
+            >
+              Soumettre le quiz
+            </button>
+          } @else if (quizPassed()) {
+            <span class="wa-chip wa-chip--success">
+              Seuil de {{ passScore() }} % atteint
+            </span>
+            <button mat-flat-button color="primary" type="button" (click)="goTo('PRACTICAL')">
+              Continuer vers l’évaluation pratique
+            </button>
+          } @else {
+            <span class="wa-chip wa-chip--danger">
+              Score inférieur au seuil de {{ passScore() }} %
+            </span>
+            <button mat-stroked-button type="button" (click)="retryQuiz()">
+              Reprendre le quiz
+            </button>
+          }
+        </div>
+      </section>
+    }
+
+    @case ('PRACTICAL') {
+      <section class="wa-card section">
+        <div class="section__head">
+          <div>
+            <div class="section__title">2. Évaluation pratique</div>
+            <p class="section__text">
+              Une bonne compréhension théorique ne garantit pas la maîtrise pratique. Réalisez la
+              tâche demandée, puis soumettez votre travail.
+            </p>
+          </div>
+          <div class="section__aside">
+            @if (practicalSubmitted()) {
+              <span class="wa-chip wa-chip--success">Travail soumis</span>
+            } @else {
+              <span class="wa-chip wa-chip--warning">En attente de soumission</span>
+            }
+          </div>
+        </div>
+
+        <div class="practical">
+          <div class="practical__main">
+            <div class="practical__title">{{ assessment().practical.title }}</div>
+            <p class="practical__brief">{{ assessment().practical.brief }}</p>
+
+            <div class="practical__subtitle">Étapes attendues</div>
+            <ol class="practical__steps">
+              @for (step of assessment().practical.steps; track step) {
+                <li>{{ step }}</li>
+              }
+            </ol>
+
+            <div class="practical__subtitle">Votre soumission</div>
+            <p class="wa-small wa-muted">{{ assessment().practical.submissionHint }}</p>
+            <textarea
+              class="submission"
+              rows="7"
+              placeholder="Collez votre Dockerfile, les commandes exécutées et le résultat du test de santé…"
+              [value]="practicalDraft()"
+              [disabled]="practicalSubmitted()"
+              (input)="practicalDraft.set($any($event.target).value)"
+            ></textarea>
+
+            @if (!practicalSubmitted()) {
+              <div class="practical__actions">
+                <span class="wa-small wa-muted">
+                  {{ practicalDraft().trim().length }} caractères saisis (20 minimum)
+                </span>
+                <button
+                  mat-flat-button
+                  color="primary"
+                  type="button"
+                  [disabled]="!canSubmitPractical()"
+                  (click)="submitPractical()"
+                >
+                  Soumettre mon travail
+                </button>
+              </div>
+            } @else {
+              <div class="practical__human">
+                <span class="material-symbols-outlined">person_check</span>
+                <div>
+                  <strong>Validation humaine requise.</strong>
+                  Les critères non vérifiables automatiquement sont transmis au superviseur. Aucun
+                  résultat n’est décidé automatiquement.
+                </div>
+              </div>
+              <div class="practical__actions practical__actions--end">
+                <button mat-flat-button color="primary" type="button" (click)="goTo('FEEDBACK')">
+                  Continuer vers le feedback IA
+                </button>
+              </div>
+            }
+          </div>
+
+          <aside class="criteria">
+            <div class="criteria__title">Critères de réussite</div>
+            @for (criterion of assessment().practical.criteria; track criterion.label) {
+              <div class="criterion">
+                <div class="criterion__head">
+                  <span class="criterion__label">{{ criterion.label }}</span>
+                  @if (!practicalSubmitted()) {
+                    <span class="wa-chip wa-chip--neutral">À vérifier</span>
+                  } @else {
+                    @switch (criterion.result) {
+                      @case ('MET') {
+                        <span class="wa-chip wa-chip--success">Validé</span>
+                      }
+                      @case ('NOT_MET') {
+                        <span class="wa-chip wa-chip--danger">Non validé</span>
+                      }
+                      @default {
+                        <span class="wa-chip wa-chip--warning">Validation humaine</span>
+                      }
+                    }
+                  }
+                </div>
+                <div class="criterion__hint">{{ criterion.hint }}</div>
+                <div class="criterion__mode">
+                  {{ criterion.autoCheckable ? 'Vérification automatique' : 'Validation humaine' }}
+                </div>
+              </div>
+            }
+          </aside>
+        </div>
+      </section>
+    }
+
+    @case ('FEEDBACK') {
+      <section class="wa-card section">
+        <div class="section__head">
+          <div>
+            <div class="section__title">3. Correction et feedback avec l’IA</div>
+            <p class="section__text">
+              L’IA analyse le quiz et l’exercice pratique pour expliquer les points maîtrisés, les
+              erreurs et les difficultés rencontrées — pas seulement donner une note.
+            </p>
+          </div>
+          <div class="section__aside">
+            <span class="wa-chip wa-chip--info">Analyse des résultats</span>
+          </div>
+        </div>
+
+        <div class="feedback-grid">
+          <div class="feedback-block feedback-block--good">
+            <div class="feedback-block__title">
+              <span class="material-symbols-outlined">task_alt</span>
+              Points maîtrisés
+            </div>
+            <ul>
+              @for (item of assessment().feedback.mastered; track item) {
+                <li>{{ item }}</li>
+              }
+            </ul>
+          </div>
+
+          <div class="feedback-block feedback-block--warn">
+            <div class="feedback-block__title">
+              <span class="material-symbols-outlined">trending_up</span>
+              Difficultés identifiées
+            </div>
+            <ul>
+              @for (item of assessment().feedback.difficulties; track item) {
+                <li>{{ item }}</li>
+              }
+            </ul>
+          </div>
+        </div>
+
+        <div class="explanations">
+          @for (explanation of assessment().feedback.explanations; track explanation.notion) {
+            <div class="explanation">
+              <div class="explanation__notion">{{ explanation.notion }}</div>
+              <p>{{ explanation.detail }}</p>
+              <div class="explanation__advice">
+                <span class="material-symbols-outlined">tips_and_updates</span>
+                {{ explanation.advice }}
+              </div>
+            </div>
+          }
+        </div>
+
+        <div class="extra">
+          <div class="extra__title">Exercices complémentaires proposés</div>
+          <ul>
+            @for (exercise of assessment().feedback.extraExercises; track exercise) {
+              <li>{{ exercise }}</li>
+            }
+          </ul>
+        </div>
+
+        <div class="section__foot">
+          <span class="wa-small wa-muted">Le feedback alimente le rapport de progression.</span>
+          <button mat-flat-button color="primary" type="button" (click)="goTo('REPORT')">
+            Voir le rapport de progression
+          </button>
+        </div>
+      </section>
+    }
+
+    @case ('REPORT') {
+      <section class="wa-card section">
+        <div class="section__head">
+          <div>
+            <div class="section__title">4. Rapport de progression</div>
+            <p class="section__text">
+              Synthèse des résultats de la formation, consultable par l’employé et, selon les
+              droits, par son superviseur.
+            </p>
+          </div>
+          <div class="section__aside">
+            <span class="wa-chip wa-chip--neutral">{{ report().courseTitle }}</span>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="wa-table report-table">
+            <thead>
+              <tr>
+                <th>Élément évalué</th>
+                <th>Résultat</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Formation</td>
+                <td>{{ report().courseTitle }}</td>
+              </tr>
+              <tr>
+                <td>Compétences travaillées</td>
+                <td>{{ report().skills.join(', ') }}</td>
+              </tr>
+              <tr>
+                <td>Quiz final</td>
+                <td>
+                  <strong>{{ report().quizScore }} %</strong>
+                  <span class="wa-small wa-muted"> (seuil {{ passScore() }} %)</span>
+                </td>
+              </tr>
+              <tr>
+                <td>Évaluation pratique</td>
+                <td>{{ report().practicalResult }}</td>
+              </tr>
+              <tr>
+                <td>Compétences maîtrisées</td>
+                <td>{{ report().mastered.join(' · ') }}</td>
+              </tr>
+              <tr>
+                <td>Difficultés identifiées</td>
+                <td>{{ report().difficulties.join(' · ') }}</td>
+              </tr>
+              <tr>
+                <td>Points à améliorer</td>
+                <td>{{ report().improvements.join(' · ') }}</td>
+              </tr>
+              <tr>
+                <td>Recommandations de l’IA</td>
+                <td>{{ report().recommendations.join(' · ') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="comparison">
+          <div class="comparison__title">Comparaison avec le niveau initial</div>
+          <div class="comparison__rows">
+            <div class="comparison__row">
+              <span class="comparison__label">Avant</span>
+              <div class="comparison__track">
+                <div class="comparison__fill comparison__fill--before" [style.width.%]="report().levelBefore"></div>
+              </div>
+              <span class="comparison__value">{{ report().levelBefore }}</span>
+            </div>
+            <div class="comparison__row">
+              <span class="comparison__label">Après</span>
+              <div class="comparison__track">
+                <div class="comparison__fill comparison__fill--after" [style.width.%]="report().levelAfter"></div>
+              </div>
+              <span class="comparison__value">{{ report().levelAfter }}</span>
+            </div>
+          </div>
+          <div class="wa-small wa-muted">
+            Résultats calculés à partir de votre session de démonstration.
+          </div>
+        </div>
+
+        <div class="section__foot">
+          <span class="wa-small wa-muted">
+            Le profil de compétences sera actualisé avec ces preuves.
+          </span>
+          <button mat-flat-button color="primary" type="button" (click)="goTo('CERTIFICATE')">
+            Vérifier les critères du certificat
+          </button>
+        </div>
+      </section>
+    }
+
+    @case ('CERTIFICATE') {
+      <section class="wa-card section">
+        <div class="section__head">
+          <div>
+            <div class="section__title">5. Certificat de réussite</div>
+            <p class="section__text">
+              Le certificat interne est généré si l’employé a terminé les activités obligatoires,
+              atteint le seuil du quiz et réussi l’évaluation pratique.
+            </p>
+          </div>
+          <div class="section__aside">
+            @if (certificateEligible()) {
+              <span class="wa-chip wa-chip--success">Critères satisfaits</span>
+            } @else {
+              <span class="wa-chip wa-chip--warning">Critères incomplets</span>
+            }
+          </div>
+        </div>
+
+        @if (myCertificate(); as certificate) {
+          <div class="certificate">
+            <div class="certificate__seal">
+              <span class="material-symbols-outlined">workspace_premium</span>
+            </div>
+            <div class="certificate__body">
+              <div class="certificate__eyebrow">Certificat interne WorkAdapt AI</div>
+              <div class="certificate__title">{{ certificate.title }}</div>
+              <div class="certificate__id">{{ certificate.id }}</div>
+
+              <div class="certificate__stats">
+                <div>
+                  <div class="certificate__stat-label">Quiz final</div>
+                  <div class="certificate__stat-value">{{ certificate.score }} %</div>
+                </div>
+                <div>
+                  <div class="certificate__stat-label">Évaluation pratique</div>
+                  <div class="certificate__stat-value">
+                    {{ certificate.practicalPassed ? 'Réussie' : 'Échouée' }}
+                  </div>
+                </div>
+                <div>
+                  <div class="certificate__stat-label">Niveau atteint</div>
+                  <div class="certificate__stat-value">{{ certificate.level }} / 100</div>
+                </div>
+                <div>
+                  <div class="certificate__stat-label">Délivré le</div>
+                  <div class="certificate__stat-value">{{ certificate.issuedAt | date: 'dd/MM/yyyy' }}</div>
+                </div>
+              </div>
+
+              <div class="certificate__criteria">
+                <div class="certificate__criteria-title">Critères validés</div>
+                <ul>
+                  @for (criterion of certificate.criteria ?? []; track criterion) {
+                    <li>{{ criterion }}</li>
+                  }
+                </ul>
+              </div>
+
+              <div class="certificate__note">
+                Ce certificat atteste uniquement de la réussite du parcours proposé par WorkAdapt
+                AI. Il ne représente pas une certification officielle reconnue par un organisme
+                externe.
+              </div>
+            </div>
+          </div>
+        } @else {
+          <div class="blocked">
+            <span class="material-symbols-outlined">lock</span>
+            <div>
+              <strong>Le certificat ne peut pas être délivré.</strong>
+              Le quiz doit atteindre {{ passScore() }} % et l’évaluation pratique doit être
+              réussie. Une note insuffisante ou un critère non validé suffit à bloquer la
+              délivrance.
+            </div>
+          </div>
+        }
+
+        <div class="section__foot">
+          <a mat-stroked-button routerLink="/app/certificats">Voir mes certificats</a>
+          <button mat-flat-button color="primary" type="button" (click)="goTo('RECOMMENDATIONS')">
+            Voir les recommandations suivantes
+          </button>
+        </div>
+      </section>
+    }
+
+    @case ('RECOMMENDATIONS') {
+      <section class="wa-card section">
+        <div class="section__head">
+          <div>
+            <div class="section__title">6. Recommandations suivantes</div>
+            <p class="section__text">
+              L’apprentissage ne s’arrête pas au certificat : l’IA analyse le rapport et propose la
+              suite du parcours de développement des compétences.
+            </p>
+          </div>
+          <div class="section__aside">
+            <span class="wa-chip wa-chip--info">{{ assessment().recommendations.length }} pistes</span>
+          </div>
+        </div>
+
+        <div class="recommendations">
+          @for (recommendation of assessment().recommendations; track recommendation.title) {
+            <article class="recommendation">
+              <div class="recommendation__head">
+                <div class="recommendation__title">{{ recommendation.title }}</div>
+                <span class="wa-chip wa-chip--info">{{ recommendation.skill }}</span>
+              </div>
+              <p class="recommendation__reason">{{ recommendation.reason }}</p>
+              <div class="recommendation__meta">
+                @for (format of recommendation.formats; track format) {
+                  <span class="wa-chip wa-chip--neutral">{{ formatLabels[format] }}</span>
+                }
+                <span class="wa-chip wa-chip--neutral">
+                  {{ recommendation.durationMinutes }} min
+                </span>
+                <span class="wa-chip wa-chip--neutral">
+                  niveau {{ recommendation.levelFrom }} → {{ recommendation.levelTo }}
+                </span>
+              </div>
+              <div class="recommendation__foot">
+                <button
+                  mat-stroked-button
+                  type="button"
+                  (click)="plan(recommendation.title)"
+                >
+                  Planifier ce parcours
+                </button>
+              </div>
+            </article>
+          }
+        </div>
+
+        <div class="loop">
+          <span class="material-symbols-outlined">autorenew</span>
+          <div>
+            <strong>Boucle d’amélioration continue.</strong>
+            Collecte des données → analyse des compétences → identification des besoins →
+            recommandation des formations → apprentissage → évaluation → mise à jour du profil →
+            nouvelle recommandation.
+          </div>
+        </div>
+
+        <div class="section__foot">
+          <a mat-stroked-button routerLink="/app/parcours">Retour au parcours</a>
+          <a mat-flat-button color="primary" routerLink="/app/competences">
+            Voir mon profil actualisé
+          </a>
+        </div>
+      </section>
+    }
+  }
+</div>

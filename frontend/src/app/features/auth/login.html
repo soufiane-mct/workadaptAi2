@@ -1,0 +1,90 @@
+<div class="login">
+  <section class="login__brand">
+    <div class="brandline">
+      <div class="brandline__mark">WA</div>
+      <div>
+        <div class="brandline__name">WorkAdapt AI</div>
+        <div class="brandline__tag">Plateforme multi-agents</div>
+      </div>
+    </div>
+
+    <span class="eyebrow">
+      <span class="eyebrow__dot"></span>
+      Boucle d’apprentissage responsable
+    </span>
+
+    <h1>Transformer les données professionnelles autorisées en opportunités d’apprentissage.</h1>
+    <p class="lede">
+      Collecte responsable sur le poste, analyse des compétences, parcours personnalisé, validation
+      humaine, évaluation et certification — dans une seule boucle.
+    </p>
+
+    <ul class="points">
+      <li><span class="material-symbols-outlined">shield</span> Filtrage local, aucune frappe ni capture d’écran</li>
+      <li><span class="material-symbols-outlined">insights</span> Estimations accompagnées d’un niveau de confiance</li>
+      <li><span class="material-symbols-outlined">verified_user</span> Validation humaine avant tout parcours</li>
+      <li><span class="material-symbols-outlined">autorenew</span> Boucle continue : collecte → analyse → formation → évaluation</li>
+    </ul>
+
+    <div class="disclaimer">
+      Prototype de démonstration — données fictives, aucun backend connecté.
+    </div>
+  </section>
+
+  <section class="login__panel">
+    <div class="mobile-brand">
+      <span class="brandline__mark">WA</span>
+      <div>
+        <div class="mobile-brand__name">WorkAdapt AI</div>
+        <div class="mobile-brand__tag">Plateforme multi-agents</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Connexion</h2>
+      <p class="card__sub">Choisissez un profil de démonstration pour explorer l’application.</p>
+
+      <div class="roles">
+        @for (option of options; track option.role) {
+          <button
+            type="button"
+            class="role"
+            [class.role--active]="selected() === option.role"
+            (click)="selectRole(option.role)"
+          >
+            <span class="material-symbols-outlined role__icon">{{ option.icon }}</span>
+            <span class="role__title">{{ option.title }}</span>
+            <span class="role__desc">{{ option.description }}</span>
+            @if (selected() === option.role) {
+              <span class="material-symbols-outlined role__check">check_circle</span>
+            }
+          </button>
+        }
+      </div>
+
+      <mat-form-field appearance="outline" class="full">
+        <mat-label>Adresse e-mail</mat-label>
+        <input matInput [value]="email()" readonly />
+      </mat-form-field>
+
+      <div class="identity">
+        <span class="identity__avatar">{{ selectedAccount().initials }}</span>
+        <div>
+          <div class="identity__name">{{ selectedAccount().name }}</div>
+          <div class="identity__meta">
+            {{ selectedAccount().jobTitle }} — {{ selectedAccount().department }}
+          </div>
+        </div>
+      </div>
+
+      <button mat-flat-button class="full submit" type="button" (click)="connect()">
+        Se connecter en tant que {{ roleLabels[selected()] }}
+      </button>
+
+      <p class="card__foot">
+        <span class="material-symbols-outlined">lock</span>
+        Démonstration : données fictives, aucun backend connecté.
+      </p>
+    </div>
+  </section>
+</div>

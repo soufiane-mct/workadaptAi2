@@ -1,0 +1,139 @@
+.cert {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-top: 3px solid #f1c75b;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--wa-shadow-lg);
+  }
+}
+
+.cert__head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.cert__seal {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #92400e;
+  box-shadow: 0 8px 20px -12px rgba(180, 120, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  .material-symbols-outlined {
+    font-size: 23px;
+  }
+}
+
+.cert__title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.cert__id {
+  font-size: 11.5px;
+  color: var(--wa-ink-soft);
+  font-family: 'Cascadia Mono', Consolas, monospace;
+}
+
+.cert__skills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cert__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #f8f9fd;
+}
+
+.cert__stat-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--wa-ink-soft);
+  font-weight: 600;
+}
+
+.cert__stat-value {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.cert__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-top: 1px dashed var(--wa-border);
+  padding-top: 12px;
+}
+
+.cert__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cert__criteria {
+  border: 1px solid var(--wa-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+
+  ul {
+    margin: 6px 0 0;
+    padding-left: 17px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--wa-ink-soft);
+  }
+}
+
+.cert__criteria-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--wa-ink-faint);
+}
+
+.attestation {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+
+  .material-symbols-outlined {
+    color: var(--wa-primary);
+    font-size: 20px;
+  }
+}
+
+.attestation__title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.attestation p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--wa-ink-soft);
+  line-height: 1.55;
+  max-width: 900px;
+}

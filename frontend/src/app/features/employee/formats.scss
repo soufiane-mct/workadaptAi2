@@ -1,0 +1,248 @@
+.intro {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+  background: linear-gradient(120deg, #f5f7ff, #fbf8ff);
+  border-color: #e2e6fa;
+
+  p {
+    margin: 4px 0 0;
+    font-size: 12.8px;
+    line-height: 1.6;
+    color: var(--wa-ink-soft);
+    max-width: 900px;
+  }
+}
+
+.intro__icon {
+  color: var(--wa-violet);
+  font-size: 24px;
+  flex: 0 0 auto;
+}
+
+.intro__title {
+  font-weight: 650;
+  font-size: 14px;
+}
+
+.formats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.format {
+  --f-accent: var(--wa-primary);
+  --f-soft: var(--wa-primary-soft);
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  padding-top: 22px;
+  overflow: hidden;
+
+  /* Liseré supérieur qui identifie le format d'un coup d'œil. */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 4px;
+    background: var(--f-accent);
+  }
+
+  &[data-accent='blue'] {
+    --f-accent: #2f54eb;
+    --f-soft: #eef2ff;
+  }
+
+  &[data-accent='violet'] {
+    --f-accent: #7c3aed;
+    --f-soft: #f4ecff;
+  }
+
+  &[data-accent='teal'] {
+    --f-accent: #0e9f9a;
+    --f-soft: #e6f7f6;
+  }
+
+  &[data-accent='amber'] {
+    --f-accent: #d98a08;
+    --f-soft: #fdf3e2;
+  }
+
+  &[data-accent='green'] {
+    --f-accent: #0f9d58;
+    --f-soft: #e7f7ef;
+  }
+
+  &[data-accent='rose'] {
+    --f-accent: #db2777;
+    --f-soft: #fdf0f6;
+  }
+
+  &[data-accent='slate'] {
+    --f-accent: #475569;
+    --f-soft: #eef1f6;
+  }
+}
+
+.format__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.format__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--f-soft);
+  color: var(--f-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+
+  .material-symbols-outlined {
+    font-size: 22px;
+  }
+}
+
+.format__titles {
+  flex: 1;
+  min-width: 150px;
+}
+
+.format__eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--f-accent);
+}
+
+.format__label {
+  margin: 2px 0 1px;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.format__english {
+  font-size: 11px;
+  color: var(--wa-ink-faint);
+}
+
+.format__used {
+  white-space: nowrap;
+}
+
+.format__tagline {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--f-accent);
+}
+
+.format__presentation {
+  margin: 0;
+  font-size: 12.6px;
+  line-height: 1.6;
+  color: var(--wa-ink-soft);
+}
+
+.format__section {
+  border-top: 1px solid var(--wa-border);
+  padding-top: 11px;
+}
+
+.format__section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #39425a;
+  margin-bottom: 7px;
+
+  .material-symbols-outlined {
+    font-size: 17px;
+    color: var(--f-accent);
+  }
+}
+
+.format__steps,
+.format__ai {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.2px;
+  line-height: 1.55;
+  color: #4b5568;
+
+  li + li {
+    margin-top: 3px;
+  }
+}
+
+.format__ai {
+  list-style: none;
+  padding-left: 0;
+
+  li {
+    position: relative;
+    padding-left: 16px;
+
+    &::before {
+      content: 'check';
+      position: absolute;
+      left: 0;
+      top: 1px;
+      font-family: 'Material Symbols Outlined';
+      font-size: 13px;
+      color: var(--f-accent);
+    }
+  }
+}
+
+.format__example {
+  margin-top: auto;
+  display: flex;
+  gap: 9px;
+  background: var(--wa-surface-2);
+  border: 1px dashed var(--wa-border-strong);
+  border-radius: var(--wa-radius-sm);
+  padding: 10px 12px;
+
+  p {
+    margin: 3px 0 0;
+    font-size: 12px;
+    line-height: 1.55;
+    color: #4b5568;
+  }
+
+  .material-symbols-outlined {
+    font-size: 17px;
+    color: #b07d09;
+    flex: 0 0 auto;
+  }
+}
+
+.format__example-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--wa-ink-faint);
+}
+
+@media (max-width: 900px) {
+  .formats-grid {
+    grid-template-columns: 1fr;
+  }
+}

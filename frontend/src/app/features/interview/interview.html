@@ -1,0 +1,76 @@
+<div class="wa-page">
+  <wa-page-header
+    title="Entretien IA"
+    subtitle="Quelques questions personnalisées pour compléter votre CV et préciser vos objectifs. Les réponses sont marquées comme « déclarées » et restent distinctes des observations faites sur le poste."
+  >
+    <span class="wa-chip wa-chip--info">Étape {{ stepIndex() }} / {{ questions.length }}</span>
+  </wa-page-header>
+
+  <div class="interview">
+    <div class="wa-card chat">
+      <div class="chat__body">
+        @for (message of messages(); track message.id) {
+          <div class="msg" [class.msg--user]="message.author === 'USER'">
+            <div class="msg__avatar">
+              @if (message.author === 'AI') {
+                <span class="material-symbols-outlined">smart_toy</span>
+              } @else {
+                SM
+              }
+            </div>
+            <div class="msg__bubble">
+              <div class="msg__text">{{ message.text }}</div>
+              <div class="msg__time">{{ message.at | date: 'HH:mm' }}</div>
+            </div>
+          </div>
+        }
+      </div>
+
+      <div class="chat__input">
+        <textarea
+          rows="2"
+          placeholder="Votre réponse…"
+          [value]="draft()"
+          [disabled]="finished()"
+          (input)="draft.set($any($event.target).value)"
+          (keydown)="onKeydown($event)"
+        ></textarea>
+        <button mat-flat-button type="button" [disabled]="finished() || !draft().trim()" (click)="send()">
+          Envoyer
+        </button>
+      </div>
+    </div>
+
+    <aside class="side">
+      <div class="wa-card">
+        <div class="wa-card__title">Progression de l’entretien</div>
+        <div class="progress">
+          <div class="progress__bar">
+            <div class="progress__fill" [style.width.%]="progress()"></div>
+          </div>
+          <span class="wa-small wa-muted">{{ progress() }} %</span>
+        </div>
+
+        <ol class="topics">
+          @for (question of questions; track question.topic; let index = $index) {
+            <li [class.topics__done]="index < step()">
+              <span class="topics__dot"></span>
+              <span>{{ question.topic }}</span>
+            </li>
+          }
+        </ol>
+      </div>
+
+      <div class="wa-card note">
+        <span class="material-symbols-outlined">lock</span>
+        <div>
+          <div class="note__title">Confidentialité</div>
+          <p>
+            Vos réponses ne sont visibles que par vous et, selon les droits, par votre superviseur.
+            Elles ne servent jamais à une décision disciplinaire.
+          </p>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>

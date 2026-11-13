@@ -1,0 +1,80 @@
+<mat-sidenav-container class="shell">
+  <mat-sidenav
+    #sidenav
+    class="shell__nav"
+    [mode]="sidenavMode()"
+    [opened]="!isHandset()"
+  >
+    <div class="brand">
+      <div class="brand__mark">WA</div>
+      <div class="brand__text">
+        <div class="brand__name">WorkAdapt AI</div>
+        <div class="brand__tag">Développement continu</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      @for (group of navGroups(); track group.title) {
+        <div class="nav-group">
+          <div class="nav-group__title">{{ group.title }}</div>
+          @for (item of group.items; track item.path) {
+            <a
+              class="nav-item"
+              [routerLink]="item.path"
+              routerLinkActive="nav-item--active"
+              (click)="isHandset() && sidenav.close()"
+            >
+              <span class="material-symbols-outlined nav-item__icon">{{ item.icon }}</span>
+              <span class="nav-item__label">{{ item.label }}</span>
+              @if (item.badge) {
+                <span class="nav-item__badge">{{ item.badge }}</span>
+              }
+            </a>
+          }
+        </div>
+      }
+    </nav>
+
+    <div class="nav-foot">
+      <span class="nav-foot__dot"></span>
+      <div>
+        <div class="nav-foot__label">Mode démonstration</div>
+        <div class="nav-foot__text">Données fictives — backend non connecté.</div>
+      </div>
+    </div>
+  </mat-sidenav>
+
+  <mat-sidenav-content class="shell__content">
+    <mat-toolbar class="topbar">
+      @if (isHandset()) {
+        <button mat-icon-button type="button" aria-label="Ouvrir le menu" (click)="sidenav.toggle()">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
+      }
+      <span class="topbar__title">{{ pageTitle() }}</span>
+      <span class="topbar__spacer"></span>
+
+      <button mat-button type="button" class="user" [matMenuTriggerFor]="userMenu">
+        <span class="user__inner">
+          <span class="user__avatar">{{ user()?.initials }}</span>
+          <span class="user__text">
+            <span class="user__name">{{ user()?.name }}</span>
+            <span class="user__role">{{ roleLabel() }}</span>
+          </span>
+          <span class="material-symbols-outlined user__chevron">expand_more</span>
+        </span>
+      </button>
+
+      <mat-menu #userMenu="matMenu">
+        <button mat-menu-item type="button" (click)="logout()">
+          <span class="material-symbols-outlined">logout</span>
+          <span>Se déconnecter</span>
+        </button>
+      </mat-menu>
+    </mat-toolbar>
+
+    <main class="shell__main">
+      <router-outlet />
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>
