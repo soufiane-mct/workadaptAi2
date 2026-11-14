@@ -470,3 +470,10 @@ table.wa-table {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ---------- Menu de notifications (overlay hors composant) ---------- */
+.notif-menu {
+  max-width: min(400px, calc(100vw - 24px)) !important;
+  width: 380px;
+}
+

@@ -109,6 +109,19 @@
 
 @media (max-width: 760px) {
   .item {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 10px 12px;
+    padding: 13px 14px;
+  }
+
+  .item__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .item__actions a,
+  .item__actions button {
+    flex: 1 1 auto;
   }
 }

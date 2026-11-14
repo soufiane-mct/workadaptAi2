@@ -248,10 +248,10 @@ La suite couvre l'application, le contrat de `DataService` (compétences,
 approbations, progression), le parcours complet de formation validée
 (demande → décision → génération → progression → clôture), l'évaluation dans un
 format choisi (réussite et échec), les notifications par rôle et l'entretien
-diagnostique, ainsi que le catalogue des sept formats, le quiz historique et son
-seuil, les gardes de route et le rendu des écrans.
+diagnostique (données et rendu), ainsi que le catalogue des sept formats, le
+quiz historique et son seuil, les gardes de route et le rendu des écrans.
 
-État actuel : **8 fichiers, 50 tests au vert**.
+État actuel : **9 fichiers, 54 tests au vert**.
 
 ---
 
