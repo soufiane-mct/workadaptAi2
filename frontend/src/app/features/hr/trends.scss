@@ -1,0 +1,55 @@
+:host {
+  display: block;
+}
+
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.chart {
+  height: 340px;
+  margin-top: 12px;
+}
+
+.insight {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--wa-border);
+  background: #f8f9fd;
+  margin-top: 12px;
+
+  .material-symbols-outlined {
+    font-size: 19px;
+  }
+}
+
+.insight--up .material-symbols-outlined {
+  color: var(--wa-success);
+}
+
+.insight--flat .material-symbols-outlined {
+  color: var(--wa-warning);
+}
+
+.insight--info .material-symbols-outlined {
+  color: var(--wa-primary);
+}
+
+.insight__title {
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.insight__text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wa-ink-soft);
+  margin-top: 2px;
+}

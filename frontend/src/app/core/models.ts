@@ -229,6 +229,294 @@ export interface TeamMember {
   courseProgress: number;
   /** Score du dernier quiz final, si disponible. */
   lastAssessment?: number;
+  /** Compétences détaillées consultables par le superviseur (CDC §11.3). */
+  skills?: MemberSkill[];
+  /** Dernière activité connue sur la plateforme. */
+  lastActivityAt?: string;
+}
+
+export interface MemberSkill {
+  code: string;
+  label: string;
+  level: number;
+  target: number;
+  confidence: number;
+  source: SkillSource;
+}
+
+/* ------------------------------------------------------------------ *
+ * Suivi des formations et résultats (CDC §11.3 et §11.4)
+ * ------------------------------------------------------------------ */
+
+export type TrainingFollowUpStatus =
+  | 'PENDING_APPROVAL'
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'FAILED';
+
+export interface TrainingFollowUp {
+  id: string;
+  employee: string;
+  employeeId: string;
+  courseTitle: string;
+  format: ModuleFormat;
+  status: TrainingFollowUpStatus;
+  progress: number;
+  lastResult?: number;
+  updatedAt: string;
+}
+
+export interface EvaluationResult {
+  id: string;
+  employee: string;
+  employeeId: string;
+  courseTitle: string;
+  evaluationFormat: ModuleFormat;
+  score: number;
+  passed: boolean;
+  at: string;
+  certificateId?: string;
+}
+
+/** Besoin de formation agrégé, consultable par les RH (CDC §11.4). */
+export interface TrainingNeed {
+  id: string;
+  skill: string;
+  department: string;
+  employeesConcerned: number;
+  averageGap: number;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  recommendedFormats: ModuleFormat[];
+  trend: number;
+}
+
+export interface SkillTrendPoint {
+  month: string;
+  level: number;
+}
+
+/** Série mensuelle par compétence, pour la page Tendances. */
+export interface SkillTrendSeries {
+  skill: string;
+  points: SkillTrendPoint[];
+}
+
+export interface ReportExport {
+  id: string;
+  title: string;
+  period: string;
+  scope: string;
+  format: 'CSV' | 'PDF';
+  generatedAt: string;
+  records: number;
+}
+
+/* ------------------------------------------------------------------ *
+ * Écarts détectés, demandes de formation et notifications (Lot 1 et 2)
+ * ------------------------------------------------------------------ */
+
+export type GapPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+
+/** Écart de compétence calculé à partir des sources collectées (CDC §6 et §11). */
+export interface SkillGap {
+  id: string;
+  skillCode: string;
+  skillLabel: string;
+  currentLevel: number;
+  targetLevel: number;
+  gap: number;
+  priority: GapPriority;
+  confidence: number;
+  evidence: string[];
+  sources: SkillSource[];
+  recommendedFormats: ModuleFormat[];
+}
+
+export type TrainingRequestStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'CHANGES_REQUESTED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED';
+
+export const TRAINING_REQUEST_STATUS_LABELS: Record<TrainingRequestStatus, string> = {
+  PENDING: 'En attente de validation',
+  APPROVED: 'Approuvée',
+  REJECTED: 'Rejetée',
+  CHANGES_REQUESTED: 'Modification demandée',
+  IN_PROGRESS: 'En cours',
+  COMPLETED: 'Terminée',
+};
+
+export interface TrainingRequest {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  gapId: string;
+  skillCode: string;
+  skillLabel: string;
+  /** Sujet précis choisi par l'employé pour la génération. */
+  subject: string;
+  objective: string;
+  format: ModuleFormat;
+  levelFrom: number;
+  levelTo: number;
+  status: TrainingRequestStatus;
+  requestedAt: string;
+  decidedAt?: string;
+  supervisorNote?: string;
+  trainingId?: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Contenu pédagogique généré par l'IA (Lot 3)
+ * ------------------------------------------------------------------ */
+
+export type TrainingStepKind =
+  | 'VIDEO'
+  | 'ARTICLE'
+  | 'PODCAST'
+  | 'QUIZ'
+  | 'FLASHCARD'
+  | 'CODE'
+  | 'PROJECT'
+  | 'DECISION'
+  | 'CHAT'
+  | 'PEER';
+
+export interface TrainingQuiz {
+  questions: QuizQuestion[];
+}
+
+export interface TrainingCodeExercise {
+  language: string;
+  starter: string;
+  expected: string[];
+  hints: string[];
+  solution: string;
+  criteria: string[];
+}
+
+export interface TrainingDecisionOption {
+  label: string;
+  outcome: string;
+  correct: boolean;
+}
+
+export interface TrainingDecision {
+  prompt: string;
+  options: TrainingDecisionOption[];
+}
+
+export interface TrainingFlashcard {
+  front: string;
+  back: string;
+}
+
+export interface TrainingStep {
+  id: string;
+  order: number;
+  kind: TrainingStepKind;
+  title: string;
+  instructions: string;
+  body: string[];
+  durationMinutes: number;
+  required: boolean;
+  quiz?: TrainingQuiz;
+  exercise?: TrainingCodeExercise;
+  decisions?: TrainingDecision[];
+  deliverable?: string;
+}
+
+export interface ProjectRole {
+  name: string;
+  mission: string;
+}
+
+export interface GeneratedTraining {
+  id: string;
+  requestId: string;
+  format: ModuleFormat;
+  title: string;
+  summary: string;
+  skillLabel: string;
+  levelFrom: number;
+  levelTo: number;
+  durationMinutes: number;
+  objectives: string[];
+  steps: TrainingStep[];
+  flashcards?: TrainingFlashcard[];
+  roles?: ProjectRole[];
+  peerReviewCriteria?: string[];
+  generatedAt: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Évaluation finale générée dans le format choisi (Lot 4)
+ * ------------------------------------------------------------------ */
+
+export type EvaluationTaskKind =
+  | 'STUDY'
+  | 'QUIZ'
+  | 'CODE'
+  | 'PROJECT'
+  | 'DECISION'
+  | 'CHAT'
+  | 'REVIEW';
+
+export interface EvaluationTask {
+  id: string;
+  kind: EvaluationTaskKind;
+  title: string;
+  instructions: string;
+  body: string[];
+  points: number;
+  quiz?: TrainingQuiz;
+  exercise?: TrainingCodeExercise;
+  decisions?: TrainingDecision[];
+  deliverable?: string;
+  reviewCriteria?: string[];
+  expectedKeywords?: string[];
+}
+
+export interface GeneratedEvaluation {
+  id: string;
+  courseId: string;
+  courseTitle: string;
+  format: ModuleFormat;
+  title: string;
+  summary: string;
+  passScore: number;
+  tasks: EvaluationTask[];
+  generatedAt: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Notifications applicatives
+ * ------------------------------------------------------------------ */
+
+export type AppNotificationType =
+  | 'GAP_DETECTED'
+  | 'TRAINING_SUBMITTED'
+  | 'TRAINING_APPROVED'
+  | 'TRAINING_REJECTED'
+  | 'CHANGES_REQUESTED'
+  | 'TRAINING_COMPLETED'
+  | 'EVALUATION_READY'
+  | 'CERTIFICATE_ISSUED';
+
+export interface AppNotification {
+  id: string;
+  type: AppNotificationType;
+  title: string;
+  message: string;
+  at: string;
+  read: boolean;
+  link?: string;
+  /** Rôles destinataires de la notification. */
+  audience: Role[];
 }
 
 export interface InterviewMessage {
@@ -236,6 +524,27 @@ export interface InterviewMessage {
   author: 'AI' | 'USER';
   text: string;
   at: string;
+}
+
+/** Action concrète proposée à l'issue de l'entretien diagnostique. */
+export interface InterviewAction {
+  title: string;
+  description: string;
+  link: string;
+  action: string;
+  tone: 'primary' | 'success' | 'warning';
+}
+
+/** Résultat consolidé des activités diagnostiques de l'entretien IA. */
+export interface InterviewDiagnosticResult {
+  id: string;
+  at: string;
+  quizScore: number;
+  scenarioScore: number;
+  globalScore: number;
+  strengths: string[];
+  watchpoints: string[];
+  actions: InterviewAction[];
 }
 
 /**

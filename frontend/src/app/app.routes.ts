@@ -25,7 +25,13 @@ export const routes: Routes = [
         path: 'tableau-de-bord',
         title: 'Tableau de bord — WorkAdapt AI',
         loadComponent: () =>
-          import('./features/employee/dashboard').then((m) => m.EmployeeDashboard),
+          import('./features/dashboard/dashboard').then((m) => m.DashboardDispatcher),
+      },
+      {
+        path: 'notifications',
+        title: 'Notifications — WorkAdapt AI',
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.NotificationsPage),
       },
       {
         path: 'profil',
@@ -50,6 +56,12 @@ export const routes: Routes = [
         title: 'Mon parcours — WorkAdapt AI',
         loadComponent: () =>
           import('./features/employee/courses').then((m) => m.EmployeeCourses),
+      },
+      {
+        path: 'formations/:requestId',
+        title: 'Formation en cours — WorkAdapt AI',
+        loadComponent: () =>
+          import('./features/employee/training-session').then((m) => m.TrainingSession),
       },
       {
         path: 'formations',
@@ -77,10 +89,55 @@ export const routes: Routes = [
           import('./features/supervisor/approvals').then((m) => m.SupervisorApprovals),
       },
       {
+        path: 'equipe',
+        title: 'Mon équipe — WorkAdapt AI',
+        canActivate: [roleGuard(['MANAGER', 'ADMIN'])],
+        loadComponent: () => import('./features/supervisor/team').then((m) => m.SupervisorTeam),
+      },
+      {
+        path: 'suivi-formations',
+        title: 'Suivi des formations — WorkAdapt AI',
+        canActivate: [roleGuard(['MANAGER', 'ADMIN'])],
+        loadComponent: () =>
+          import('./features/supervisor/training-followup').then((m) => m.TrainingFollowUp),
+      },
+      {
+        path: 'resultats',
+        title: 'Résultats et évaluations — WorkAdapt AI',
+        canActivate: [roleGuard(['MANAGER', 'ADMIN'])],
+        loadComponent: () =>
+          import('./features/supervisor/results').then((m) => m.SupervisorResults),
+      },
+      {
         path: 'rh',
         title: 'Vue RH — WorkAdapt AI',
         canActivate: [roleGuard(['RH', 'ADMIN'])],
         loadComponent: () => import('./features/hr/overview').then((m) => m.HrOverview),
+      },
+      {
+        path: 'besoins-formation',
+        title: 'Besoins de formation — WorkAdapt AI',
+        canActivate: [roleGuard(['RH', 'ADMIN'])],
+        loadComponent: () => import('./features/hr/training-needs').then((m) => m.HrTrainingNeeds),
+      },
+      {
+        path: 'tendances',
+        title: 'Tendances des compétences — WorkAdapt AI',
+        canActivate: [roleGuard(['RH', 'ADMIN'])],
+        loadComponent: () => import('./features/hr/trends').then((m) => m.HrTrends),
+      },
+      {
+        path: 'formations-certifications',
+        title: 'Formations et certifications — WorkAdapt AI',
+        canActivate: [roleGuard(['RH', 'ADMIN'])],
+        loadComponent: () =>
+          import('./features/hr/certifications').then((m) => m.HrCertifications),
+      },
+      {
+        path: 'rapports',
+        title: 'Rapports et exports — WorkAdapt AI',
+        canActivate: [roleGuard(['RH', 'ADMIN'])],
+        loadComponent: () => import('./features/hr/reports').then((m) => m.HrReports),
       },
       {
         path: 'utilisateurs',

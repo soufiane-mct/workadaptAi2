@@ -1,0 +1,206 @@
+<div class="wa-page">
+  <wa-page-header
+    title="Tableau de bord superviseur"
+    subtitle="Pilotage de l’équipe : demandes à valider, avancement des formations et écarts de compétences. Les données restent agrégées et strictement professionnelles."
+  >
+    <span class="wa-chip wa-chip--warning">Données de démonstration</span>
+    <a mat-stroked-button routerLink="/app/validations">Ouvrir les validations</a>
+  </wa-page-header>
+
+  <div class="wa-grid wa-grid--kpi">
+    <wa-kpi-card
+      label="Collaborateurs suivis"
+      [value]="team().length"
+      icon="groups"
+      tone="blue"
+      hint="Membres actifs de la cohorte pilote"
+    />
+    <wa-kpi-card
+      label="Validations en attente"
+      [value]="validationsTotal()"
+      icon="approval"
+      tone="amber"
+      hint="Parcours et demandes de formation"
+    />
+    <wa-kpi-card
+      label="Formations en cours"
+      [value]="inProgress().length"
+      icon="route"
+      tone="violet"
+      hint="Progression suivie en temps réel"
+    />
+    <wa-kpi-card
+      label="Formations terminées"
+      [value]="completed().length"
+      icon="verified"
+      tone="green"
+      hint="Évaluations finales validées"
+    />
+  </div>
+
+  <div class="wa-grid wa-grid--2 wa-section">
+    <div class="wa-card">
+      <div class="wa-card__title">Demandes à valider</div>
+      <div class="wa-card__subtitle">
+        Propositions de parcours et demandes de formation par format générées par l’IA.
+      </div>
+
+      @if (pendingApprovals().length === 0 && pendingTrainings().length === 0) {
+        <div class="wa-empty">Aucune demande en attente. L’équipe est à jour.</div>
+      } @else {
+        <ul class="req">
+          @for (request of pendingTrainings().slice(0, 3); track request.id) {
+            <li class="req__row">
+              <span class="material-symbols-outlined req__icon">category</span>
+              <div class="req__body">
+                <div class="req__title">{{ request.employee }} — {{ formatLabel[request.format] }}</div>
+                <div class="req__meta">{{ request.courseTitle }}</div>
+              </div>
+              <span class="wa-chip wa-chip--warning">Formation</span>
+            </li>
+          }
+          @for (request of pendingApprovals().slice(0, 3); track request.id) {
+            <li class="req__row">
+              <span class="material-symbols-outlined req__icon">route</span>
+              <div class="req__body">
+                <div class="req__title">{{ request.employee }} — {{ request.courseTitle }}</div>
+                <div class="req__meta">
+                  {{ request.levelFrom }} → {{ request.levelTo }} / 100 ·
+                  {{ request.durationMinutes }} min
+                </div>
+              </div>
+              <span class="wa-chip wa-chip--info">Parcours</span>
+            </li>
+          }
+        </ul>
+        <a mat-flat-button routerLink="/app/validations" class="req__cta">
+          Traiter les demandes ({{ validationsTotal() }})
+        </a>
+      }
+    </div>
+
+    <div class="wa-card">
+      <div class="wa-card__title">Niveau moyen de l’équipe</div>
+      <div class="wa-card__subtitle">
+        Estimation croisée des six sources · moyenne {{ averageLevel() }} / 100.
+      </div>
+      <div echarts [options]="teamChart()" class="chart"></div>
+    </div>
+  </div>
+
+  <div class="wa-card wa-section">
+    <div class="wa-card__title">Progression de l’équipe</div>
+    <div class="wa-card__subtitle">Parcours actif, avancement et dernier résultat autorisé.</div>
+
+    <table class="wa-table">
+      <thead>
+        <tr>
+          <th>Collaborateur</th>
+          <th>Département</th>
+          <th>Parcours actif</th>
+          <th>Progression</th>
+          <th>Dernier résultat</th>
+          <th>Dernière activité</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (member of team(); track member.id) {
+          <tr>
+            <td>
+              <strong>{{ member.name }}</strong>
+              <div class="wa-muted wa-small">{{ member.jobTitle }}</div>
+            </td>
+            <td class="wa-muted">{{ member.department }}</td>
+            <td>
+              @if (member.activeCourse) {
+                <span class="wa-small">{{ member.activeCourse }}</span>
+              } @else {
+                <span class="wa-muted wa-small">Aucun parcours actif</span>
+              }
+            </td>
+            <td class="cell-progress">
+              <div class="progress">
+                <div class="progress__bar">
+                  <div class="progress__fill" [style.width.%]="member.courseProgress"></div>
+                </div>
+                <span class="wa-small">{{ member.courseProgress }} %</span>
+              </div>
+            </td>
+            <td>
+              @if (member.lastAssessment !== undefined) {
+                <span
+                  [class]="member.lastAssessment >= 75 ? 'wa-chip wa-chip--success' : 'wa-chip wa-chip--danger'"
+                >
+                  {{ member.lastAssessment }} / 100
+                </span>
+              } @else {
+                <span class="wa-muted wa-small">—</span>
+              }
+            </td>
+            <td class="wa-muted wa-small">
+              {{ member.lastActivityAt ? (member.lastActivityAt | date: 'dd/MM/yyyy HH:mm') : '—' }}
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div class="wa-grid wa-grid--2 wa-section">
+    <div class="wa-card">
+      <div class="wa-card__title">Écarts à surveiller</div>
+      <div class="wa-card__subtitle">
+        Compétences dont l’écart avec la cible du poste dépasse 20 points.
+      </div>
+
+      @if (criticalGaps().length === 0) {
+        <div class="wa-empty">Aucun écart critique détecté.</div>
+      } @else {
+        <ul class="gaps">
+          @for (item of criticalGaps(); track item.employeeId + item.skill.code) {
+            <li class="gaps__row">
+              <div class="gaps__body">
+                <div class="gaps__skill">{{ item.skill.label }}</div>
+                <div class="wa-muted wa-small">
+                  {{ item.employee }} · {{ item.skill.level }} → {{ item.skill.target }} / 100
+                </div>
+              </div>
+              <span [class]="gapTone(item.gap)">−{{ item.gap }} pts</span>
+            </li>
+          }
+        </ul>
+      }
+      <a mat-stroked-button routerLink="/app/equipe" class="gaps__cta">Voir mon équipe</a>
+    </div>
+
+    <div class="wa-card">
+      <div class="wa-card__title">Résultats récents</div>
+      <div class="wa-card__subtitle">
+        Évaluations finales autorisées, quel que soit le format choisi.
+      </div>
+
+      <ul class="results">
+        @for (result of recentResults(); track result.id) {
+          <li class="results__row">
+            <span
+              class="results__badge"
+              [class.results__badge--fail]="!result.passed"
+            >
+              {{ result.score }}
+            </span>
+            <div class="results__body">
+              <div class="results__title">{{ result.employee }}</div>
+              <div class="wa-muted wa-small">
+                {{ result.courseTitle }} · {{ formatLabel[result.evaluationFormat] }}
+              </div>
+            </div>
+            <span [class]="result.passed ? 'wa-chip wa-chip--success' : 'wa-chip wa-chip--danger'">
+              {{ result.passed ? 'Réussi' : 'À retravailler' }}
+            </span>
+          </li>
+        }
+      </ul>
+      <a mat-stroked-button routerLink="/app/resultats" class="gaps__cta">Tous les résultats</a>
+    </div>
+  </div>
+</div>

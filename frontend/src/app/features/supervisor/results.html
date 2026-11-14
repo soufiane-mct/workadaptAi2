@@ -1,0 +1,114 @@
+<div class="wa-page">
+  <wa-page-header
+    title="Résultats et évaluations"
+    subtitle="Évaluations finales de l’équipe, quel que soit le format choisi par l’employé. Seuls les résultats autorisés sont affichés."
+  >
+    <span class="wa-chip wa-chip--info">{{ results().length }} évaluations</span>
+  </wa-page-header>
+
+  <div class="wa-grid wa-grid--kpi">
+    <wa-kpi-card
+      label="Score moyen"
+      [value]="averageScore()"
+      unit=" / 100"
+      icon="analytics"
+      tone="blue"
+      hint="Tous formats confondus"
+    />
+    <wa-kpi-card
+      label="Taux de réussite"
+      [value]="passRate()"
+      unit=" %"
+      icon="check_circle"
+      tone="green"
+      hint="Seuil de 75 / 100 ou critères validés"
+    />
+    <wa-kpi-card
+      label="Certificats internes"
+      [value]="certificates().length"
+      icon="workspace_premium"
+      tone="violet"
+      hint="Délivrés après validation humaine"
+    />
+    <wa-kpi-card
+      label="Formats évalués"
+      [value]="formats().length"
+      icon="category"
+      tone="amber"
+      hint="Les sept formats du CDC"
+    />
+  </div>
+
+  <div class="wa-card wa-section">
+    <div class="toolbar">
+      <label class="wa-field">
+        <span class="wa-field__label">Collaborateur</span>
+        <select
+          class="wa-select"
+          [value]="employeeFilter()"
+          (change)="employeeFilter.set($any($event.target).value)"
+        >
+          <option value="ALL">Tous les collaborateurs</option>
+          @for (employee of employees(); track employee) {
+            <option [value]="employee">{{ employee }}</option>
+          }
+        </select>
+      </label>
+      <label class="wa-field">
+        <span class="wa-field__label">Format d’évaluation</span>
+        <select
+          class="wa-select"
+          [value]="formatFilter()"
+          (change)="formatFilter.set($any($event.target).value)"
+        >
+          <option value="ALL">Tous les formats</option>
+          @for (format of formats(); track format.code) {
+            <option [value]="format.code">{{ format.label }}</option>
+          }
+        </select>
+      </label>
+      <span class="wa-muted wa-small toolbar__count">{{ filtered().length }} résultat(s)</span>
+    </div>
+
+    @if (filtered().length === 0) {
+      <div class="wa-empty">Aucun résultat ne correspond à ces filtres.</div>
+    } @else {
+      <table class="wa-table">
+        <thead>
+          <tr>
+            <th>Collaborateur</th>
+            <th>Parcours</th>
+            <th>Format d’évaluation</th>
+            <th>Score</th>
+            <th>Résultat</th>
+            <th>Certificat</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (result of filtered(); track result.id) {
+            <tr>
+              <td><strong>{{ result.employee }}</strong></td>
+              <td class="course">{{ result.courseTitle }}</td>
+              <td><span class="wa-chip wa-chip--neutral">{{ formatLabel[result.evaluationFormat] }}</span></td>
+              <td><strong>{{ result.score }} / 100</strong></td>
+              <td>
+                <span [class]="result.passed ? 'wa-chip wa-chip--success' : 'wa-chip wa-chip--danger'">
+                  {{ result.passed ? 'Réussi' : 'Non validé' }}
+                </span>
+              </td>
+              <td>
+                @if (result.certificateId) {
+                  <span class="wa-mono">{{ result.certificateId }}</span>
+                } @else {
+                  <span class="wa-muted wa-small">—</span>
+                }
+              </td>
+              <td class="wa-muted wa-small">{{ result.at | date: 'dd/MM/yyyy' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+</div>

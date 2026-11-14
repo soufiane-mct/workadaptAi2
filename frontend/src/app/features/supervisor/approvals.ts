@@ -3,7 +3,12 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { DataService } from '../../core/data/data.service';
-import { ApprovalRequest } from '../../core/models';
+import {
+  ApprovalRequest,
+  FORMAT_LABELS,
+  TRAINING_REQUEST_STATUS_LABELS,
+  TrainingRequest,
+} from '../../core/models';
 import { PageHeader } from '../../shared/ui/page-header';
 
 @Component({
@@ -19,7 +24,11 @@ export class SupervisorApprovals {
 
   readonly approvals = this.data.approvals;
   readonly team = this.data.team;
+  readonly trainingRequests = this.data.trainingRequests;
   readonly filter = signal<'PENDING' | 'ALL'>('PENDING');
+  readonly notes = signal<Record<string, string>>({});
+  readonly formatLabels = FORMAT_LABELS;
+  readonly trainingStatusLabels = TRAINING_REQUEST_STATUS_LABELS;
 
   readonly visible = computed(() => {
     const all = this.approvals();
@@ -28,9 +37,63 @@ export class SupervisorApprovals {
       : all;
   });
 
+  readonly visibleTrainings = computed(() => {
+    const all = [...this.trainingRequests()].sort((a, b) =>
+      b.requestedAt.localeCompare(a.requestedAt),
+    );
+    return this.filter() === 'PENDING'
+      ? all.filter((request) => request.status === 'PENDING')
+      : all;
+  });
+
   readonly pendingCount = computed(
     () => this.approvals().filter((request) => request.status === 'PENDING').length,
   );
+
+  readonly pendingTrainingCount = computed(
+    () => this.trainingRequests().filter((request) => request.status === 'PENDING').length,
+  );
+
+  readonly totalPending = computed(() => this.pendingCount() + this.pendingTrainingCount());
+
+  setNote(requestId: string, value: string): void {
+    this.notes.update((state) => ({ ...state, [requestId]: value }));
+  }
+
+  noteFor(requestId: string): string {
+    return this.notes()[requestId] ?? '';
+  }
+
+  decideTraining(
+    request: TrainingRequest,
+    decision: 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED',
+  ): void {
+    this.data.decideTrainingRequest(request.id, decision, this.noteFor(request.id));
+    const messages: Record<typeof decision, string> = {
+      APPROVED: `Formation ${this.formatLabels[request.format].toLowerCase()} approuvée pour ${request.employeeName}. Le contenu est débloqué.`,
+      REJECTED: `Demande rejetée pour ${request.employeeName}. L’employé est notifié.`,
+      CHANGES_REQUESTED: `Modification demandée à ${request.employeeName}. L’employé est notifié.`,
+    };
+    this.snack.open(messages[decision], 'Fermer', { duration: 5000 });
+    this.notes.update((state) => ({ ...state, [request.id]: '' }));
+  }
+
+  trainingStatusClass(status: TrainingRequest['status']): string {
+    switch (status) {
+      case 'APPROVED':
+        return 'wa-chip wa-chip--success';
+      case 'REJECTED':
+        return 'wa-chip wa-chip--danger';
+      case 'CHANGES_REQUESTED':
+        return 'wa-chip wa-chip--warning';
+      case 'IN_PROGRESS':
+        return 'wa-chip wa-chip--info';
+      case 'COMPLETED':
+        return 'wa-chip wa-chip--neutral';
+      default:
+        return 'wa-chip wa-chip--warning';
+    }
+  }
 
   decide(request: ApprovalRequest, decision: 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED'): void {
     this.data.decideApproval(request.id, decision);

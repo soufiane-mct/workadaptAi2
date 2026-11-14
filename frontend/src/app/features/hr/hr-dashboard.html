@@ -1,0 +1,123 @@
+<div class="wa-page">
+  <wa-page-header
+    title="Tableau de bord RH"
+    subtitle="Vue agrégée de la cohorte : compétences, besoins de formation et certifications. Aucune donnée nominative n’est exposée sur cette page."
+  >
+    <span class="wa-chip wa-chip--warning">Données de démonstration</span>
+    <a mat-stroked-button routerLink="/app/besoins-formation">Besoins de formation</a>
+  </wa-page-header>
+
+  <div class="wa-grid wa-grid--kpi">
+    <wa-kpi-card
+      label="Niveau moyen de l’équipe"
+      [value]="averageLevel()"
+      unit=" / 100"
+      icon="speed"
+      tone="blue"
+      hint="Moyenne des collaborateurs disposant d’un profil"
+    />
+    <wa-kpi-card
+      label="Besoins prioritaires"
+      [value]="highNeeds().length"
+      icon="priority_high"
+      tone="amber"
+      hint="Écarts agrégés de priorité haute"
+    />
+    <wa-kpi-card
+      label="Formations terminées"
+      [value]="completedTrainings()"
+      icon="verified"
+      tone="green"
+      [hint]="'Taux de complétion ' + completionRate() + ' %'"
+    />
+    <wa-kpi-card
+      label="KPI atteints"
+      [value]="kpiAttainment()"
+      unit=" %"
+      icon="monitoring"
+      tone="violet"
+      hint="Moyenne d’atteinte des cibles du CDC"
+    />
+  </div>
+
+  <div class="wa-grid wa-grid--2 wa-section">
+    <div class="wa-card">
+      <div class="wa-card__title">Tendances des compétences</div>
+      <div class="wa-card__subtitle">
+        Évolution mensuelle des niveaux moyens sur les six derniers mois.
+      </div>
+      <div echarts [options]="trendChart()" class="chart"></div>
+    </div>
+
+    <div class="wa-card">
+      <div class="wa-card__title">Répartition des formations par format</div>
+      <div class="wa-card__subtitle">
+        Les sept formats du CDC : multimédia, interactive, pratique, projet, simulation, IA,
+        collaborative.
+      </div>
+      <div echarts [options]="formatChart()" class="chart"></div>
+    </div>
+  </div>
+
+  <div class="wa-card wa-section">
+    <div class="wa-card__title">Besoins de formation prioritaires</div>
+    <div class="wa-card__subtitle">
+      Écarts agrégés par compétence et par département, formats recommandés par l’IA.
+    </div>
+
+    <table class="wa-table">
+      <thead>
+        <tr>
+          <th>Compétence</th>
+          <th>Département</th>
+          <th>Collaborateurs concernés</th>
+          <th>Écart moyen</th>
+          <th>Tendance</th>
+          <th>Priorité</th>
+          <th>Formats recommandés</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (need of needs(); track need.id) {
+          <tr>
+            <td><strong>{{ need.skill }}</strong></td>
+            <td class="wa-muted">{{ need.department }}</td>
+            <td>{{ need.employeesConcerned }}</td>
+            <td><strong>−{{ need.averageGap }} pts</strong></td>
+            <td>
+              <span class="wa-small" [class.trend--up]="need.trend > 0">+{{ need.trend }} pts</span>
+            </td>
+            <td><span [class]="priorityTone(need.priority)">{{ priorityLabel(need.priority) }}</span></td>
+            <td>
+              <span class="formats">
+                @for (format of need.recommendedFormats; track format) {
+                  <span class="wa-chip wa-chip--neutral">{{ formatLabel[format] }}</span>
+                }
+              </span>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <a mat-stroked-button routerLink="/app/besoins-formation" class="cta">Analyser les besoins</a>
+  </div>
+
+  <div class="wa-grid wa-grid--3 wa-section">
+    <a class="wa-card tile" routerLink="/app/rh">
+      <span class="material-symbols-outlined tile__icon">groups</span>
+      <div class="tile__title">Vue RH complète</div>
+      <div class="tile__text">Indicateurs plateforme et suivi de la cohorte.</div>
+    </a>
+    <a class="wa-card tile" routerLink="/app/formations-certifications">
+      <span class="material-symbols-outlined tile__icon">workspace_premium</span>
+      <div class="tile__title">Formations et certifications</div>
+      <div class="tile__text">Taux de complétion, formats et certificats internes.</div>
+    </a>
+    <a class="wa-card tile" routerLink="/app/rapports">
+      <span class="material-symbols-outlined tile__icon">download</span>
+      <div class="tile__title">Rapports et exports</div>
+      <div class="tile__text">Générer un rapport de cohorte CSV ou PDF.</div>
+    </a>
+  </div>
+</div>

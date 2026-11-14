@@ -245,6 +245,65 @@ a {
   color: #4a5366;
 }
 
+/* ---------- Champs de filtre ---------- */
+.wa-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.wa-field__label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--wa-ink-soft);
+}
+
+.wa-input,
+.wa-select {
+  height: 38px;
+  border: 1px solid var(--wa-border);
+  border-radius: 10px;
+  background: #fff;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--wa-ink);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.wa-input::placeholder {
+  color: #98a1b3;
+}
+
+.wa-input:focus,
+.wa-select:focus {
+  outline: none;
+  border-color: var(--wa-primary);
+  box-shadow: 0 0 0 3px var(--wa-primary-soft);
+}
+
+.wa-textarea {
+  border: 1px solid var(--wa-border);
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--wa-ink);
+  resize: vertical;
+  min-height: 84px;
+}
+
+.wa-textarea:focus {
+  outline: none;
+  border-color: var(--wa-primary);
+  box-shadow: 0 0 0 3px var(--wa-primary-soft);
+}
+
 /* ---------- Barre de niveau ---------- */
 .wa-bar {
   position: relative;

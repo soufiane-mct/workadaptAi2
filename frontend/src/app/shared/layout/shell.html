@@ -54,6 +54,60 @@
       <span class="topbar__title">{{ pageTitle() }}</span>
       <span class="topbar__spacer"></span>
 
+      <button
+        mat-icon-button
+        type="button"
+        class="bell"
+        [matMenuTriggerFor]="notifMenu"
+        aria-label="Notifications"
+      >
+        <span class="material-symbols-outlined">notifications</span>
+        @if (unreadCount() > 0) {
+          <span class="bell__badge">{{ unreadCount() }}</span>
+        }
+      </button>
+
+      <mat-menu #notifMenu="matMenu" class="notif-menu" xPosition="before">
+        <div class="notif-head">
+          <span class="notif-head__title">Notifications</span>
+          @if (unreadCount() > 0) {
+            <button type="button" class="notif-head__action" (click)="markAllRead()">
+              Tout marquer comme lu
+            </button>
+          }
+        </div>
+
+        @if (notifications().length === 0) {
+          <div class="notif-empty">Aucune notification pour votre rôle.</div>
+        }
+
+        @for (notification of notifications(); track notification.id) {
+          <button
+            mat-menu-item
+            type="button"
+            class="notif-item"
+            [class.notif-item--unread]="!notification.read"
+            (click)="openNotification(notification)"
+          >
+            <span class="material-symbols-outlined notif-item__icon">
+              {{ notificationIcon(notification.type) }}
+            </span>
+            <span class="notif-item__body">
+              <span class="notif-item__title">{{ notification.title }}</span>
+              <span class="notif-item__text">{{ notification.message }}</span>
+            </span>
+            @if (!notification.read) {
+              <span class="notif-item__dot"></span>
+            }
+          </button>
+        }
+
+        <button mat-menu-item type="button" class="notif-all" routerLink="/app/notifications">
+          <span class="material-symbols-outlined">open_in_new</span>
+          <span>Voir toutes les notifications</span>
+        </button>
+      </mat-menu>
+
       <button mat-button type="button" class="user" [matMenuTriggerFor]="userMenu">
         <span class="user__inner">
           <span class="user__avatar">{{ user()?.initials }}</span>

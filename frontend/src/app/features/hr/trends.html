@@ -1,0 +1,133 @@
+<div class="wa-page">
+  <wa-page-header
+    title="Tendances des compétences"
+    subtitle="Évolution agrégée des niveaux moyens sur les six derniers mois. Lecture collective uniquement, sans donnée personnelle."
+  >
+    <span class="wa-chip wa-chip--info">{{ months()[0] }} → {{ months()[months().length - 1] }}</span>
+  </wa-page-header>
+
+  <div class="wa-grid wa-grid--kpi">
+    <wa-kpi-card
+      label="Progression moyenne"
+      [value]="averageDelta()"
+      unit=" pts"
+      icon="trending_up"
+      tone="green"
+      hint="Sur les six derniers mois"
+    />
+    <wa-kpi-card
+      label="Compétences suivies"
+      [value]="series().length"
+      icon="radar"
+      tone="blue"
+      hint="Séries agrégées disponibles"
+    />
+    <wa-kpi-card
+      label="Compétence la plus dynamique"
+      [value]="emerging()[0]?.skill ?? '—'"
+      icon="rocket_launch"
+      tone="violet"
+      [hint]="'+' + (emerging()[0]?.delta ?? 0) + ' pts sur la période'"
+    />
+    <wa-kpi-card
+      label="Compétences en baisse"
+      [value]="declining().length"
+      icon="trending_down"
+      tone="amber"
+      hint="À intégrer au plan de formation"
+    />
+  </div>
+
+  <div class="wa-card wa-section">
+    <div class="toolbar">
+      <label class="wa-field">
+        <span class="wa-field__label">Compétence</span>
+        <select class="wa-select" [value]="selected()" (change)="selected.set($any($event.target).value)">
+          <option value="ALL">Toutes les compétences</option>
+          @for (item of series(); track item.skill) {
+            <option [value]="item.skill">{{ item.skill }}</option>
+          }
+        </select>
+      </label>
+    </div>
+    <div echarts [options]="chart()" class="chart"></div>
+  </div>
+
+  <div class="wa-grid wa-grid--2 wa-section">
+    <div class="wa-card">
+      <div class="wa-card__title">Synthèse par compétence</div>
+      <div class="wa-card__subtitle">Niveau initial, niveau actuel et évolution sur la période.</div>
+
+      <table class="wa-table">
+        <thead>
+          <tr>
+            <th>Compétence</th>
+            <th>Début</th>
+            <th>Actuel</th>
+            <th>Évolution</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of summary(); track item.skill) {
+            <tr>
+              <td><strong>{{ item.skill }}</strong></td>
+              <td class="wa-muted">{{ item.first }} / 100</td>
+              <td><strong>{{ item.last }} / 100</strong></td>
+              <td>
+                <span
+                  [class]="item.delta >= 0 ? 'wa-chip wa-chip--success' : 'wa-chip wa-chip--danger'"
+                >
+                  {{ item.delta >= 0 ? '+' : '' }}{{ item.delta }} pts
+                </span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="wa-card">
+      <div class="wa-card__title">À retenir</div>
+      <div class="wa-card__subtitle">Signaux agrégés pour la politique de formation.</div>
+
+      <div class="insight insight--up">
+        <span class="material-symbols-outlined">trending_up</span>
+        <div>
+          <div class="insight__title">Dynamique positive</div>
+          <div class="insight__text">
+            @for (item of emerging(); track item.skill; let last = $last) {
+              {{ item.skill }} (+{{ item.delta }} pts){{ last ? '' : ' · ' }}
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="insight insight--flat">
+        <span class="material-symbols-outlined">trending_flat</span>
+        <div>
+          <div class="insight__title">Points de vigilance</div>
+          <div class="insight__text">
+            @if (declining().length === 0) {
+              Aucune compétence en baisse sur la période.
+            } @else {
+              @for (item of declining(); track item.skill; let last = $last) {
+                {{ item.skill }} ({{ item.delta }} pts){{ last ? '' : ' · ' }}
+              }
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="insight insight--info">
+        <span class="material-symbols-outlined">info</span>
+        <div>
+          <div class="insight__title">Méthode</div>
+          <div class="insight__text">
+            Niveaux estimés par croisement du Collector, du CV, de l’entretien, des formations et
+            des évaluations. La confiance associée est indiquée sur les fiches individuelles.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

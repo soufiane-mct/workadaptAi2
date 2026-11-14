@@ -132,6 +132,49 @@
   }
 }
 
+.group {
+  margin-bottom: 26px;
+}
+
+.group__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.group__title {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.request--training {
+  border-left-color: var(--wa-primary);
+}
+
+.request__note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: var(--wa-warning-soft);
+  font-size: 12px;
+  color: #8a5306;
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+}
+
+.request__field {
+  margin-top: 14px;
+  max-width: 560px;
+}
+
 .member-role {
   font-size: 11px;
   color: var(--wa-ink-soft);

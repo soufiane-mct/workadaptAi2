@@ -1,7 +1,7 @@
 <div class="wa-page">
   <wa-page-header
     title="Validations en attente"
-    subtitle="Aucun parcours n’est lancé sans validation humaine. Vous pouvez approuver, rejeter ou demander une modification ; la décision et sa date sont enregistrées."
+    subtitle="Aucune formation n’est lancée sans validation humaine. Vous traitez ici les demandes de formation des employés et les parcours proposés par l’agent. Chaque décision et sa date sont enregistrées."
   >
     <div class="filters">
       <button
@@ -10,7 +10,7 @@
         [class.active]="filter() === 'PENDING'"
         (click)="filter.set('PENDING')"
       >
-        En attente ({{ pendingCount() }})
+        En attente ({{ totalPending() }})
       </button>
       <button
         mat-stroked-button
@@ -23,11 +23,122 @@
     </div>
   </wa-page-header>
 
-  @if (visible().length === 0) {
-    <div class="wa-card wa-empty">
-      Aucune demande en attente. Toutes les propositions ont été traitées.
+  <section class="group">
+    <div class="group__head">
+      <div>
+        <div class="group__title">Demandes de formation des employés</div>
+        <div class="wa-card__subtitle">
+          L’employé a choisi un écart, un sujet et un seul format parmi les sept. En approuvant, vous
+          débloquez le contenu généré par l’IA.
+        </div>
+      </div>
+      <span class="wa-chip wa-chip--warning">{{ pendingTrainingCount() }} à traiter</span>
     </div>
-  }
+
+    @if (visibleTrainings().length === 0) {
+      <div class="wa-card wa-empty">
+        Aucune demande de formation ne correspond à ce filtre.
+      </div>
+    }
+
+    @for (request of visibleTrainings(); track request.id) {
+      <div class="wa-card request request--training">
+        <div class="request__head">
+          <div>
+            <div class="request__employee">{{ request.employeeName }}</div>
+            <div class="request__role">
+              {{ request.skillLabel }} · demande {{ request.id }} ·
+              {{ request.requestedAt | date: 'dd/MM/yyyy HH:mm' }}
+            </div>
+          </div>
+          <div class="request__aside">
+            <span [class]="trainingStatusClass(request.status)">
+              {{ trainingStatusLabels[request.status] }}
+            </span>
+          </div>
+        </div>
+
+        <div class="request__title">{{ request.subject }}</div>
+
+        <div class="request__facts">
+          <div class="fact">
+            <div class="fact__label">Format choisi</div>
+            <div class="fact__value">
+              <span class="wa-chip wa-chip--info">{{ formatLabels[request.format] }}</span>
+            </div>
+          </div>
+          <div class="fact">
+            <div class="fact__label">Progression attendue</div>
+            <div class="fact__value">{{ request.levelFrom }} → {{ request.levelTo }} / 100</div>
+          </div>
+          <div class="fact">
+            <div class="fact__label">Écart ciblé</div>
+            <div class="fact__value">−{{ request.levelTo - request.levelFrom }} pts</div>
+          </div>
+        </div>
+
+        <div class="justification">
+          <div class="justification__title">
+            <span class="material-symbols-outlined">flag</span>
+            Objectif exprimé par l’employé
+          </div>
+          <p>{{ request.objective }}</p>
+        </div>
+
+        @if (request.supervisorNote) {
+          <div class="request__note">
+            <span class="material-symbols-outlined">edit_note</span>
+            <span>{{ request.supervisorNote }}</span>
+          </div>
+        }
+
+        @if (request.status === 'PENDING') {
+          <label class="wa-field request__field">
+            <span class="wa-field__label">Motif ou précision (facultatif)</span>
+            <input
+              class="wa-input"
+              type="text"
+              placeholder="Ex. préciser le périmètre, ajouter un cas de production…"
+              [value]="noteFor(request.id)"
+              (input)="setNote(request.id, $any($event.target).value)"
+            />
+          </label>
+
+          <div class="request__actions">
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="decideTraining(request, 'CHANGES_REQUESTED')"
+            >
+              Demander une modification
+            </button>
+            <button mat-stroked-button type="button" (click)="decideTraining(request, 'REJECTED')">
+              Rejeter
+            </button>
+            <button mat-flat-button type="button" (click)="decideTraining(request, 'APPROVED')">
+              Approuver et débloquer la formation
+            </button>
+          </div>
+        }
+      </div>
+    }
+  </section>
+
+  <section class="group">
+    <div class="group__head">
+      <div>
+        <div class="group__title">Parcours proposés par l’agent Learning Planner</div>
+        <div class="wa-card__subtitle">
+          Propositions de parcours multi-formats issues de l’analyse des compétences.
+        </div>
+      </div>
+    </div>
+
+    @if (visible().length === 0) {
+      <div class="wa-card wa-empty">
+        Aucun parcours en attente. Toutes les propositions ont été traitées.
+      </div>
+    }
 
   @for (request of visible(); track request.id) {
     <div class="wa-card request">
@@ -86,6 +197,7 @@
       }
     </div>
   }
+  </section>
 
   <div class="wa-card wa-section">
     <div class="wa-card__title">Suivi de la progression de l’équipe</div>

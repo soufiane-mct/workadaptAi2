@@ -1,73 +1,498 @@
 <div class="wa-page">
   <wa-page-header
     title="Entretien IA"
-    subtitle="Quelques questions personnalisées pour compléter votre CV et préciser vos objectifs. Les réponses sont marquées comme « déclarées » et restent distinctes des observations faites sur le poste."
+    subtitle="Un entretien en cinq temps : analyse du CV, conversation, quiz diagnostique, mise en situation, puis synthèse avec trois actions concrètes. Les réponses sont marquées comme « déclarées » et restent distinctes des observations faites sur le poste."
   >
-    <span class="wa-chip wa-chip--info">Étape {{ stepIndex() }} / {{ questions.length }}</span>
+    <span class="wa-chip wa-chip--info">Phase {{ phaseIndex() + 1 }} / {{ phases.length }}</span>
+    <span class="wa-chip wa-chip--neutral">{{ progress() }} %</span>
   </wa-page-header>
 
-  <div class="interview">
-    <div class="wa-card chat">
-      <div class="chat__body">
-        @for (message of messages(); track message.id) {
-          <div class="msg" [class.msg--user]="message.author === 'USER'">
-            <div class="msg__avatar">
-              @if (message.author === 'AI') {
-                <span class="material-symbols-outlined">smart_toy</span>
-              } @else {
-                SM
-              }
+  <div class="wa-card stepper-card">
+    <ol class="stepper">
+      @for (item of phases; track item.code; let index = $index) {
+        <li
+          class="stepper__item"
+          [class.stepper__item--done]="index < phaseIndex()"
+          [class.stepper__item--active]="index === phaseIndex()"
+        >
+          <span class="stepper__num">
+            @if (index < phaseIndex()) {
+              <span class="material-symbols-outlined">check</span>
+            } @else {
+              {{ index + 1 }}
+            }
+          </span>
+          <span class="stepper__label">{{ item.label }}</span>
+        </li>
+      }
+    </ol>
+    <mat-progress-bar mode="determinate" [value]="progress()" />
+  </div>
+
+  <div class="layout">
+    <div class="main">
+      @switch (phase()) {
+        @case ('CV') {
+          <section class="wa-card panel">
+            <div class="panel__head">
+              <span class="material-symbols-outlined panel__icon">description</span>
+              <div>
+                <div class="panel__eyebrow">Temps 1</div>
+                <div class="panel__title">Analyse du CV</div>
+              </div>
             </div>
-            <div class="msg__bubble">
-              <div class="msg__text">{{ message.text }}</div>
-              <div class="msg__time">{{ message.at | date: 'HH:mm' }}</div>
+
+            <p class="panel__text">
+              L’agent a extrait de votre CV les éléments vérifiables : expériences, technologies et
+              responsabilités. Ces éléments sont des <strong>déclarations</strong> : ils seront
+              confrontés à ce que vous nous dites, puis au quiz et à la mise en situation.
+            </p>
+
+            <div class="cv-grid">
+              <div class="cv-block">
+                <div class="cv-block__title">
+                  <span class="material-symbols-outlined">work</span>
+                  Expériences détectées
+                </div>
+                <ul>
+                  <li>Développeur backend — 3 ans (Java, Spring Boot)</li>
+                  <li>Intégration continue — pipelines GitLab CI et GitHub Actions</li>
+                  <li>Conteneurisation — Docker en environnement de recette</li>
+                </ul>
+              </div>
+              <div class="cv-block">
+                <div class="cv-block__title">
+                  <span class="material-symbols-outlined">psychology_alt</span>
+                  À vérifier pendant l’entretien
+                </div>
+                <ul>
+                  <li>Niveau réel sur Docker et les builds multi-étapes</li>
+                  <li>Capacité à concevoir un pipeline, pas seulement l’utiliser</li>
+                  <li>Autonomie de diagnostic sur un conteneur en échec</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="source-note">
+              <span class="material-symbols-outlined">info</span>
+              <div>
+                <div class="source-note__title">Observation ou inférence ?</div>
+                <p>
+                  L’analyse du CV produit des <strong>inférences</strong> à confiance moyenne.
+                  Elles ne deviennent des preuves qu’après confirmation par vos réponses et par les
+                  activités diagnostiques.
+                </p>
+              </div>
+            </div>
+
+            <div class="panel__actions">
+              <button mat-flat-button color="primary" type="button" (click)="startConversation()">
+                Commencer la conversation
+                <span class="material-symbols-outlined">arrow_forward</span>
+              </button>
+            </div>
+          </section>
+        }
+
+        @case ('CONVERSATION') {
+          <div class="chat">
+            <div class="wa-card chat__card">
+              <div class="chat__body">
+                @for (message of messages(); track message.id) {
+                  <div class="msg" [class.msg--user]="message.author === 'USER'">
+                    <div class="msg__avatar">
+                      @if (message.author === 'AI') {
+                        <span class="material-symbols-outlined">smart_toy</span>
+                      } @else {
+                        <span class="material-symbols-outlined">person</span>
+                      }
+                    </div>
+                    <div class="msg__bubble">
+                      <div class="msg__text">{{ message.text }}</div>
+                      <div class="msg__time">{{ message.at | date: 'HH:mm' }}</div>
+                    </div>
+                  </div>
+                }
+              </div>
+
+              <div class="chat__input">
+                <textarea
+                  rows="2"
+                  placeholder="Écrivez votre réponse… (Entrée pour envoyer, Maj+Entrée pour un saut de ligne)"
+                  [ngModel]="draft()"
+                  (ngModelChange)="draft.set($event)"
+                  (keydown)="onKeydown($event)"
+                  [disabled]="finished()"
+                ></textarea>
+                <button
+                  mat-flat-button
+                  color="primary"
+                  type="button"
+                  [disabled]="!draft().trim() || finished()"
+                  (click)="send()"
+                >
+                  Envoyer
+                </button>
+              </div>
+            </div>
+
+            @if (finished()) {
+              <div class="wa-card chat__done">
+                <span class="material-symbols-outlined">task_alt</span>
+                <div class="chat__done-body">
+                  <div class="chat__done-title">Conversation terminée</div>
+                  <p>
+                    Les échanges sont enregistrés comme déclarations. Passons au quiz diagnostique
+                    pour vérifier les notions clés, puis à une mise en situation.
+                  </p>
+                </div>
+                <button mat-flat-button color="primary" type="button" (click)="goToQuiz()">
+                  Passer au quiz diagnostique
+                  <span class="material-symbols-outlined">quiz</span>
+                </button>
+              </div>
+            }
+
+            <div class="wa-card side-block">
+              <div class="side-block__title">Progression de la conversation</div>
+              <div class="progress">
+                <div class="progress__bar">
+                  <div class="progress__fill" [style.width.%]="conversationProgress()"></div>
+                </div>
+                <span class="wa-small wa-muted">{{ stepIndex() }} / {{ questions.length }}</span>
+              </div>
+              <ul class="topics">
+                @for (question of questions; track question.topic; let index = $index) {
+                  <li [class.topics__done]="index < step()">
+                    <span class="topics__dot"></span>
+                    <span>{{ question.topic }}</span>
+                  </li>
+                }
+              </ul>
             </div>
           </div>
         }
-      </div>
 
-      <div class="chat__input">
-        <textarea
-          rows="2"
-          placeholder="Votre réponse…"
-          [value]="draft()"
-          [disabled]="finished()"
-          (input)="draft.set($any($event.target).value)"
-          (keydown)="onKeydown($event)"
-        ></textarea>
-        <button mat-flat-button type="button" [disabled]="finished() || !draft().trim()" (click)="send()">
-          Envoyer
-        </button>
-      </div>
+        @case ('QUIZ') {
+          <section class="wa-card panel">
+            <div class="panel__head">
+              <span class="material-symbols-outlined panel__icon">quiz</span>
+              <div>
+                <div class="panel__eyebrow">Temps 3 · Diagnostic</div>
+                <div class="panel__title">Quiz diagnostique</div>
+              </div>
+              <span class="wa-chip wa-chip--neutral">{{ diagnosticQuiz.length }} questions</span>
+            </div>
+
+            <p class="panel__text">
+              Ces questions vérifient les notions clés repérées dans votre CV et dans la
+              conversation. Le résultat alimente votre profil avec la source
+              <strong>« Évalué »</strong>, avec un niveau de confiance plus élevé qu’une simple
+              déclaration.
+            </p>
+
+            @for (question of diagnosticQuiz; track question.id; let index = $index) {
+              <fieldset class="question" [class.question--correct]="quizSubmitted() && quizAnswers()[question.id] === question.correctIndex" [class.question--wrong]="quizSubmitted() && quizAnswers()[question.id] !== question.correctIndex">
+                <legend class="question__legend">
+                  <span class="question__num">{{ index + 1 }}</span>
+                  <span class="wa-chip wa-chip--neutral">{{ question.topic }}</span>
+                </legend>
+                <p class="question__prompt">{{ question.prompt }}</p>
+                <div class="options">
+                  @for (option of question.options; track option; let optionIndex = $index) {
+                    <label
+                      class="option"
+                      [class.is-selected]="quizAnswers()[question.id] === optionIndex"
+                      [class.is-correct]="quizSubmitted() && optionIndex === question.correctIndex"
+                      [class.is-wrong]="quizSubmitted() && quizAnswers()[question.id] === optionIndex && optionIndex !== question.correctIndex"
+                    >
+                      <input
+                        type="radio"
+                        [name]="question.id"
+                        [checked]="quizAnswers()[question.id] === optionIndex"
+                        [disabled]="quizSubmitted()"
+                        (change)="answerQuiz(question.id, optionIndex)"
+                      />
+                      <span class="option__marker">{{ letter(optionIndex) }}</span>
+                      <span class="option__text">{{ option }}</span>
+                    </label>
+                  }
+                </div>
+
+                @if (quizSubmitted()) {
+                  <div class="question__explanation">
+                    <span class="material-symbols-outlined">lightbulb</span>
+                    <span>{{ question.explanation }}</span>
+                  </div>
+                }
+              </fieldset>
+            }
+
+            <div class="panel__actions">
+              @if (!quizSubmitted()) {
+                <button
+                  mat-flat-button
+                  color="primary"
+                  type="button"
+                  [disabled]="!quizAnswered()"
+                  (click)="submitQuiz()"
+                >
+                  Valider mes réponses ({{ quizScore() }} / 100 estimé)
+                </button>
+              } @else {
+                <span
+                  [class]="
+                    quizScore() >= 75
+                      ? 'wa-chip wa-chip--success'
+                      : quizScore() >= 50
+                        ? 'wa-chip wa-chip--warning'
+                        : 'wa-chip wa-chip--danger'
+                  "
+                >
+                  Score quiz : {{ quizScore() }} / 100
+                </span>
+                <button mat-flat-button color="primary" type="button" (click)="goToScenario()">
+                  Passer à la mise en situation
+                  <span class="material-symbols-outlined">arrow_forward</span>
+                </button>
+              }
+            </div>
+          </section>
+        }
+
+        @case ('SCENARIO') {
+          <section class="wa-card panel">
+            <div class="panel__head">
+              <span class="material-symbols-outlined panel__icon">psychology</span>
+              <div>
+                <div class="panel__eyebrow">Temps 4 · Exercice</div>
+                <div class="panel__title">Mise en situation</div>
+              </div>
+            </div>
+
+            <div class="scenario">
+              <div class="scenario__context">
+                <div class="scenario__context-title">
+                  <span class="material-symbols-outlined">dns</span>
+                  Contexte
+                </div>
+                <p>
+                  Votre service déploie une API conteneurisée. Depuis la dernière mise à jour, le
+                  pod redémarre en boucle sur l’environnement de recette. Vous êtes la personne
+                  désignée pour traiter l’incident.
+                </p>
+              </div>
+
+              <div class="scenario__question">
+                <div class="scenario__question-title">Quelle est votre première action ?</div>
+                <div class="scenario__options">
+                  @for (option of scenarioOptions; track option; let index = $index) {
+                    <button
+                      type="button"
+                      class="scenario__option"
+                      [class.scenario__option--selected]="scenarioChoice() === index"
+                      [class.scenario__option--correct]="scenarioSubmitted() && index === 0"
+                      [class.scenario__option--wrong]="scenarioSubmitted() && scenarioChoice() === index && index !== 0"
+                      [disabled]="scenarioSubmitted()"
+                      (click)="chooseScenario(index)"
+                    >
+                      <span class="scenario__letter">{{ letter(index) }}</span>
+                      <span>{{ option }}</span>
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <label class="wa-field">
+                <span class="wa-field__label">
+                  Expliquez votre démarche et la vérification que vous feriez après correction
+                  (80 caractères minimum)
+                </span>
+                <textarea
+                  class="wa-textarea"
+                  rows="6"
+                  placeholder="Décrivez les informations que vous consulteriez, l’hypothèse retenue, la correction proposée et la preuve de bon fonctionnement…"
+                  [ngModel]="scenarioDraft()"
+                  (ngModelChange)="scenarioDraft.set($event)"
+                  [disabled]="scenarioSubmitted()"
+                ></textarea>
+              </label>
+              <div class="scenario__foot">
+                <span class="wa-small wa-muted">{{ scenarioDraft().trim().length }} / 80 caractères</span>
+                @if (scenarioSubmitted()) {
+                  <span class="wa-chip wa-chip--info">Score situation : {{ scenarioScore() }} / 100</span>
+                }
+              </div>
+            </div>
+
+            <div class="panel__actions">
+              @if (!scenarioSubmitted()) {
+                <button
+                  mat-flat-button
+                  color="primary"
+                  type="button"
+                  [disabled]="!canSubmitScenario()"
+                  (click)="submitScenario()"
+                >
+                  Terminer et générer la synthèse
+                  <span class="material-symbols-outlined">auto_awesome</span>
+                </button>
+              } @else {
+                <button mat-flat-button color="primary" type="button" (click)="phase.set('SYNTHESIS')">
+                  Voir la synthèse
+                  <span class="material-symbols-outlined">arrow_forward</span>
+                </button>
+              }
+            </div>
+          </section>
+        }
+
+        @case ('SYNTHESIS') {
+          <section class="wa-card result">
+            <div class="result__head">
+              <div class="result__score">
+                {{ globalScore() }}<span>/ 100</span>
+              </div>
+              <div class="result__body">
+                <div class="result__label">Synthèse de l’entretien diagnostique</div>
+                <div class="result__title">
+                  @if (globalScore() >= 70) {
+                    Acquis confirmés — passage à la pratique recommandé
+                  } @else {
+                    Acquis partiels — consolidation ciblée recommandée
+                  }
+                </div>
+                <p class="result__text">
+                  Quiz diagnostique : <strong>{{ quizScore() }} / 100</strong> · Mise en situation :
+                  <strong>{{ scenarioScore() }} / 100</strong>. Ces résultats sont enregistrés dans
+                  votre profil et restent consultables par vous. Aucun résultat n’est utilisé de
+                  manière disciplinaire.
+                </p>
+                <div class="result__meta">
+                  <span class="wa-chip wa-chip--info">Source : évalué</span>
+                  <span class="wa-chip wa-chip--neutral">{{ diagnostic()?.id ?? 'diagnostic local' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="result-grid">
+              <div class="result-block">
+                <div class="result-block__title">
+                  <span class="material-symbols-outlined">trending_up</span>
+                  Points forts détectés
+                </div>
+                @if (strengths().length === 0) {
+                  <p class="wa-small wa-muted">
+                    Aucun point fort confirmé par le quiz. La mise en situation reste prise en
+                    compte dans la synthèse.
+                  </p>
+                } @else {
+                  <ul>
+                    @for (item of strengths(); track item) {
+                      <li>{{ item }}</li>
+                    }
+                  </ul>
+                }
+              </div>
+
+              <div class="result-block result-block--watch">
+                <div class="result-block__title">
+                  <span class="material-symbols-outlined">flag</span>
+                  Points à consolider
+                </div>
+                @if (watchpoints().length === 0) {
+                  <p class="wa-small wa-muted">
+                    Aucun point de vigilance majeur : le quiz est entièrement réussi.
+                  </p>
+                } @else {
+                  <ul>
+                    @for (item of watchpoints(); track item) {
+                      <li>{{ item }}</li>
+                    }
+                  </ul>
+                }
+              </div>
+            </div>
+
+            <div class="actions-block">
+              <div class="actions-block__title">
+                <span class="material-symbols-outlined">checklist</span>
+                Trois actions concrètes pour la suite
+              </div>
+              <div class="actions-grid">
+                @for (item of actions(); track item.title; let index = $index) {
+                  <article class="action">
+                    <div class="action__head">
+                      <span class="action__num">{{ index + 1 }}</span>
+                      <span [class]="toneClass(item.tone)">{{ item.title }}</span>
+                    </div>
+                    <p class="action__text">{{ item.description }}</p>
+                    <a mat-stroked-button [routerLink]="item.link">{{ item.action }}</a>
+                  </article>
+                }
+              </div>
+            </div>
+
+            <div class="panel__actions">
+              <a mat-stroked-button routerLink="/app/tableau-de-bord">Retour au tableau de bord</a>
+              <button mat-stroked-button type="button" (click)="restart()">Refaire l’entretien</button>
+            </div>
+          </section>
+        }
+      }
     </div>
 
-    <aside class="side">
-      <div class="wa-card">
-        <div class="wa-card__title">Progression de l’entretien</div>
-        <div class="progress">
-          <div class="progress__bar">
-            <div class="progress__fill" [style.width.%]="progress()"></div>
-          </div>
-          <span class="wa-small wa-muted">{{ progress() }} %</span>
-        </div>
-
-        <ol class="topics">
-          @for (question of questions; track question.topic; let index = $index) {
-            <li [class.topics__done]="index < step()">
-              <span class="topics__dot"></span>
-              <span>{{ question.topic }}</span>
-            </li>
-          }
-        </ol>
+    <aside class="aside">
+      <div class="wa-card side-block">
+        <div class="side-block__title">Ce que fait l’entretien</div>
+        <ul class="aside-list">
+          <li>
+            <span class="material-symbols-outlined">description</span>
+            <span>Analyse du CV : inférences à confiance moyenne.</span>
+          </li>
+          <li>
+            <span class="material-symbols-outlined">forum</span>
+            <span>Conversation : déclarations de l’employé.</span>
+          </li>
+          <li>
+            <span class="material-symbols-outlined">quiz</span>
+            <span>Quiz diagnostique : preuves évaluées.</span>
+          </li>
+          <li>
+            <span class="material-symbols-outlined">psychology</span>
+            <span>Mise en situation : raisonnement en contexte.</span>
+          </li>
+          <li>
+            <span class="material-symbols-outlined">checklist</span>
+            <span>Synthèse : trois actions concrètes.</span>
+          </li>
+        </ul>
       </div>
 
-      <div class="wa-card note">
-        <span class="material-symbols-outlined">lock</span>
+      <div class="wa-card side-block">
+        <div class="side-block__title">Scores en direct</div>
+        <div class="score-row">
+          <span>Quiz diagnostique</span>
+          <strong>{{ quizSubmitted() ? quizScore() + ' / 100' : '—' }}</strong>
+        </div>
+        <div class="score-row">
+          <span>Mise en situation</span>
+          <strong>{{ scenarioSubmitted() ? scenarioScore() + ' / 100' : '—' }}</strong>
+        </div>
+        <div class="score-row score-row--total">
+          <span>Score global</span>
+          <strong>{{ scenarioSubmitted() ? globalScore() + ' / 100' : '—' }}</strong>
+        </div>
+      </div>
+
+      <div class="wa-card side-block note">
+        <span class="material-symbols-outlined">verified_user</span>
         <div>
-          <div class="note__title">Confidentialité</div>
+          <div class="note__title">Cadre d’usage</div>
           <p>
-            Vos réponses ne sont visibles que par vous et, selon les droits, par votre superviseur.
-            Elles ne servent jamais à une décision disciplinaire.
+            L’entretien ne produit aucune décision automatique. Les résultats complètent votre
+            profil avec leur source et leur confiance, et toute formation reste validée par votre
+            superviseur.
           </p>
         </div>
       </div>

@@ -1,0 +1,154 @@
+<div class="wa-page">
+  <wa-page-header
+    title="Mon équipe"
+    subtitle="Consultation des profils de compétences autorisés. Chaque estimation indique sa source et son degré de confiance ; le superviseur ne modifie jamais un profil."
+  >
+    <span class="wa-chip wa-chip--danger">{{ criticalGapCount() }} écarts critiques</span>
+    <span class="wa-chip wa-chip--warning">{{ lowConfidenceCount() }} estimations à faible confiance</span>
+  </wa-page-header>
+
+  <div class="wa-card filters">
+    <label class="wa-field">
+      <span class="wa-field__label">Rechercher</span>
+      <input
+        class="wa-input"
+        type="search"
+        placeholder="Nom ou poste…"
+        [value]="search()"
+        (input)="search.set($any($event.target).value)"
+      />
+    </label>
+    <label class="wa-field">
+      <span class="wa-field__label">Département</span>
+      <select
+        class="wa-select"
+        [value]="department()"
+        (change)="department.set($any($event.target).value)"
+      >
+        @for (item of departments(); track item) {
+          <option [value]="item">{{ item === 'ALL' ? 'Tous les départements' : item }}</option>
+        }
+      </select>
+    </label>
+    <span class="wa-muted wa-small filters__count">{{ filtered().length }} collaborateur(s)</span>
+  </div>
+
+  <div class="team-layout">
+    <div class="wa-card">
+      <div class="wa-card__title">Collaborateurs suivis</div>
+      <div class="wa-card__subtitle">Sélectionnez une ligne pour consulter le détail autorisé.</div>
+
+      @if (filtered().length === 0) {
+        <div class="wa-empty">Aucun collaborateur ne correspond à ces filtres.</div>
+      } @else {
+        <table class="wa-table">
+          <thead>
+            <tr>
+              <th>Collaborateur</th>
+              <th>Département</th>
+              <th>Niveau moyen</th>
+              <th>Écarts</th>
+              <th>Dernière activité</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (member of filtered(); track member.id) {
+              <tr
+                class="row"
+                [class.row--active]="selected()?.id === member.id"
+                (click)="select(member)"
+              >
+                <td>
+                  <strong>{{ member.name }}</strong>
+                  <div class="wa-muted wa-small">{{ member.jobTitle }}</div>
+                </td>
+                <td class="wa-muted">{{ member.department }}</td>
+                <td>
+                  <span class="wa-small">{{ member.averageLevel }} / 100</span>
+                </td>
+                <td>
+                  @if (member.skills?.length) {
+                    <span class="wa-chip wa-chip--neutral">
+                      {{ (member.skills ?? []).length }} compétences
+                    </span>
+                  } @else {
+                    <span class="wa-muted wa-small">profil en attente</span>
+                  }
+                </td>
+                <td class="wa-muted wa-small">
+                  {{ member.lastActivityAt ? (member.lastActivityAt | date: 'dd/MM HH:mm') : '—' }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+
+    <aside class="wa-card detail">
+      @if (selected(); as member) {
+        <div class="detail__head">
+          <div class="detail__avatar">{{ member.name.slice(0, 1) }}{{ member.name.split(' ')[1]?.slice(0, 1) }}</div>
+          <div>
+            <div class="detail__name">{{ member.name }}</div>
+            <div class="wa-muted wa-small">{{ member.jobTitle }} · {{ member.department }}</div>
+          </div>
+        </div>
+
+        <div class="detail__facts">
+          <div class="fact">
+            <div class="fact__label">Niveau moyen</div>
+            <div class="fact__value">{{ member.averageLevel }} / 100</div>
+          </div>
+          <div class="fact">
+            <div class="fact__label">Compétences suivies</div>
+            <div class="fact__value">{{ member.skillsTracked }}</div>
+          </div>
+          <div class="fact">
+            <div class="fact__label">Formations terminées</div>
+            <div class="fact__value">{{ member.coursesCompleted }}</div>
+          </div>
+        </div>
+
+        <div class="detail__title">Compétences et écarts</div>
+        @if (gaps().length === 0) {
+          <div class="wa-empty">Profil en attente de collecte.</div>
+        } @else {
+          <ul class="skills">
+            @for (skill of gaps(); track skill.code) {
+              <li class="skill">
+                <div class="skill__head">
+                  <span class="skill__label">{{ skill.label }}</span>
+                  <span [class]="gapTone(skill.gap)">
+                    {{ skill.gap > 0 ? '−' + skill.gap + ' pts' : 'à jour' }}
+                  </span>
+                </div>
+                <div class="skill__bar">
+                  <div class="skill__level" [style.width.%]="skill.level"></div>
+                  <div class="skill__target" [style.left.%]="skill.target"></div>
+                </div>
+                <div class="skill__meta">
+                  <span class="wa-muted wa-small">{{ skill.level }} → {{ skill.target }} / 100</span>
+                  <span [class]="confidenceTone(skill.confidence)">
+                    {{ confidenceLabel(skill.confidence) }}
+                  </span>
+                </div>
+                <div class="wa-muted wa-small">Source : {{ sourceLabels[skill.source] }}</div>
+              </li>
+            }
+          </ul>
+        }
+
+        <div class="notice">
+          <span class="material-symbols-outlined">verified_user</span>
+          <span>
+            Lecture seule. Toute décision disciplinaire est exclue : ces estimations servent
+            uniquement à construire un plan de développement validé par un humain.
+          </span>
+        </div>
+      } @else {
+        <div class="wa-empty">Sélectionnez un collaborateur.</div>
+      }
+    </aside>
+  </div>
+</div>

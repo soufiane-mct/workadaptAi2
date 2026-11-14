@@ -12,7 +12,7 @@ import { provideEchartsCore } from 'ngx-echarts';
 
 // Import ciblé : on n'embarque que les graphiques réellement utilisés.
 import * as echarts from 'echarts/core';
-import { BarChart, RadarChart } from 'echarts/charts';
+import { BarChart, LineChart, PieChart, RadarChart } from 'echarts/charts';
 import {
   GridComponent,
   LegendComponent,
@@ -25,6 +25,8 @@ import { routes } from './app.routes';
 
 echarts.use([
   BarChart,
+  LineChart,
+  PieChart,
   RadarChart,
   GridComponent,
   LegendComponent,

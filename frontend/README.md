@@ -82,15 +82,22 @@ src/
 │  │  └─ ui/                 # kpi-card, skill-bar, page-header, status-chip
 │  └─ features/
 │     ├─ auth/               # connexion (4 profils), page « Accès refusé »
+│     ├─ dashboard/          # dispatcher de tableau de bord par rôle
 │     ├─ employee/           # tableau de bord, compétences, parcours,
-│     │                      # formats de formation, évaluation finale,
+│     │                      # formats, séance de formation, évaluation,
 │     │                      # certificats, profil
-│     ├─ interview/          # entretien IA (chat simulé)
-│     ├─ supervisor/         # validations + suivi de progression de l'équipe
-│     ├─ hr/                 # vue RH, utilisateurs/RBAC, journal d'audit
+│     ├─ notifications/      # centre de notifications filtré par rôle
+│     ├─ interview/          # entretien IA en cinq phases
+│     ├─ supervisor/         # validations, équipe, suivi, résultats
+│     ├─ hr/                 # vue RH, besoins, tendances, certifications,
+│     │                      # rapports, utilisateurs, journal d'audit
 │     └─ control-center/     # AI Agent Control Center (7 agents, workflows, échanges)
 └─ styles.scss               # thème Material 3 + jetons de design --wa-*
 ```
+
+Les générateurs de contenu simulé vivent dans `core/data/` :
+`training-generator.ts` (les sept formats de formation interactive) et
+`evaluation-generator.ts` (les sept formats d'évaluation finale).
 
 ### Règle d'architecture
 
@@ -109,20 +116,34 @@ reste claire et très contrastée.
 
 ### Parcours, formats et évaluation (CDC §5.X)
 
-- **`/app/formations`** — catalogue des **sept formats** du cahier des charges :
-  multimédia, interactive, pratique, projet, simulation / laboratoire virtuel,
-  personnalisée avec l'IA, collaborative. Chaque fiche présente la
-  présentation, le déroulement, le rôle de l'IA et un exemple.
+- **`/app/formations`** — l'IA détecte les écarts (Collector, CV, entretien,
+  projets, certifications, évaluations) et notifie l'employé. Celui-ci choisit
+  **un écart**, **un seul format** parmi les sept et précise le sujet et
+  l'objectif. La demande part ensuite au superviseur.
+- **`/app/validations`** — le superviseur approuve, rejette ou demande une
+  modification. L'approbation génère et débloque le contenu ; tant qu'elle
+  n'est pas donnée, la formation reste inaccessible.
+- **`/app/formations/:requestId`** — séance de formation réellement interactive
+  selon le format : chapitres vidéo, cartes de révision, quiz corrigés,
+  éditeur de code vérifié, livrables de projet, scénarios de simulation, tuteur
+  IA conversationnel, production collaborative avec revue de pair. La
+  progression ne valide que les activités effectivement réalisées.
 - **`/app/parcours`** — tableau de démonstration `Étape · Type · Activité ·
-  Statut`, détail des étapes et aperçu du processus post-formation.
-- **`/app/parcours/:courseId/evaluation`** — les six étapes du CDC :
-  1. quiz final (QCM, vrai/faux, question technique, situation professionnelle) ;
-  2. évaluation pratique avec critères (vérification automatique ou validation
-     humaine) ;
-  3. feedback IA (points maîtrisés, difficultés, explications, exercices) ;
-  4. rapport de progression (scores, acquis, difficultés, avant/après) ;
-  5. certificat interne délivré si quiz ≥ 75 % **et** pratique réussie ;
-  6. recommandations suivantes, puis mise à jour du profil.
+  Statut` et détail des étapes du parcours.
+- **`/app/parcours/:courseId/evaluation`** — l'employé choisit **un seul** des
+  sept formats. L'IA génère l'évaluation à partir du parcours réellement suivi,
+  puis l'employé réalise ses activités (analyse de ressources, quiz, exercice
+  technique, livrable, mise en situation, entretien avec le tuteur IA, revue de
+  pair). Chaque activité est pondérée ; le score final est calculé sur 100.
+  Le certificat interne n'est délivré qu'à partir de **75 / 100**, et les
+  évaluations échouées sont enregistrées sans certificat.
+- **`/app/notifications`** — chaque événement du parcours (écart détecté,
+  demande transmise, décision du superviseur, formation terminée, certificat)
+  produit une notification dont l'audience est filtrée par rôle.
+- **`/app/entretien`** — entretien en cinq temps : analyse du CV, conversation,
+  quiz diagnostique, mise en situation puis synthèse avec **trois actions
+  concrètes**. Les résultats sont marqués « Évalué » et restent distincts des
+  observations du poste.
 
 Aucun résultat n'est décidé automatiquement : les critères non vérifiables
 sont marqués « validation humaine » et le certificat reste un document interne.
@@ -153,14 +174,23 @@ Les chemins d'API attendus suivent le cahier des charges :
 | Page | Route | Employé | Superviseur | RH | Admin |
 | --- | --- | :---: | :---: | :---: | :---: |
 | Tableau de bord | `/app/tableau-de-bord` | ✔ | ✔ | ✔ | ✔ |
+| Notifications | `/app/notifications` | ✔ | ✔ | ✔ | ✔ |
 | Mon profil | `/app/profil` | ✔ | — | — | — |
 | Mes compétences | `/app/competences` | ✔ | — | — | — |
 | Mon parcours | `/app/parcours` | ✔ | — | — | — |
 | Formats de formation | `/app/formations` | ✔ | — | — | — |
+| Séance de formation | `/app/formations/:requestId` | ✔ | — | — | — |
 | Évaluation finale | `/app/parcours/:courseId/evaluation` | ✔ | — | — | — |
 | Mes certificats | `/app/certificats` | ✔ | — | — | — |
 | Entretien IA | `/app/entretien` | ✔ | — | — | — |
 | Validations | `/app/validations` | — | ✔ | — | ✔ |
+| Mon équipe | `/app/equipe` | — | ✔ | — | ✔ |
+| Suivi des formations | `/app/suivi-formations` | — | ✔ | — | ✔ |
+| Résultats et évaluations | `/app/resultats` | — | ✔ | — | ✔ |
+| Besoins de formation | `/app/besoins-formation` | — | — | ✔ | ✔ |
+| Tendances | `/app/tendances` | — | — | ✔ | ✔ |
+| Formations et certifications | `/app/formations-certifications` | — | — | ✔ | ✔ |
+| Rapports et exports | `/app/rapports` | — | — | ✔ | ✔ |
 | Vue RH | `/app/rh` | — | — | ✔ | ✔ |
 | Utilisateurs | `/app/utilisateurs` | — | — | — | ✔ |
 | Journal d'audit | `/app/audit` | — | — | — | ✔ |
@@ -172,24 +202,26 @@ Les chemins d'API attendus suivent le cahier des charges :
 
 - **Observation ≠ inférence** : chaque compétence affiche sa source (`Observé`,
   `Déclaré`, `Évalué`, `Certifié`), son niveau de confiance et ses preuves.
-- **Validation humaine obligatoire** : aucun parcours n'est lancé sans
-  approbation du superviseur ; il peut approuver, demander une modification ou rejeter.
+- **Validation humaine obligatoire** : aucun parcours ni aucune formation n'est
+  lancé sans approbation du superviseur ; il peut approuver, demander une
+  modification ou rejeter, et chaque décision est conservée avec sa date.
 - **Aucune décision disciplinaire automatisée** : les écrans le rappellent
-  explicitement (entretien, profil, certificats).
+  explicitement (entretien, profil, certificats, notifications).
 - **Transparence des sources** : le profil liste les six sources de données, leur
   état de synchronisation, les finalités, les droits d'accès, la durée de
   conservation et la méthode d'estimation (CDC §12.2).
-- **Formats de formation** : les sept formats du CDC (multimédia, interactive,
-  pratique, projet, simulation, personnalisée IA, collaborative) sont décrits
-  dans un catalogue et utilisés dans les parcours.
-- **Évaluation complète** : quiz final (quatre types de questions), évaluation
-  pratique avec critères, feedback IA, rapport de progression, certificat et
-  recommandations suivantes — dans cet ordre.
-- **Certificats internes** : délivrés après quiz final (seuil 75 %) et évaluation
-  pratique ; les vidéos ne valident jamais une compétence.
-- **Validation humaine** : les critères pratiques non vérifiables
-  automatiquement sont transmis au superviseur ; aucun résultat n'est décidé
-  automatiquement.
+- **Formats de formation réels** : les sept formats du CDC (multimédia,
+  interactive, pratique, projet, simulation, personnalisée IA, collaborative)
+  ne sont pas des fiches de texte : chacun produit une séance interactive
+  (vidéo, cartes, quiz, code, livrable, scénario, tuteur, pair).
+- **Évaluation au choix** : l'employé choisit **un seul** format d'évaluation ;
+  l'IA génère les activités à partir du parcours terminé, avec pondération et
+  seuil de 75 / 100.
+- **Certificats internes** : délivrés uniquement au-dessus du seuil ; les
+  évaluations échouées sont enregistrées sans certificat, avec un parcours de
+  consolidation proposé.
+- **Notifications traçables** : chaque événement du parcours produit une
+  notification non disciplinaire, dont l'audience est filtrée par rôle.
 
 ---
 
@@ -213,29 +245,29 @@ npx ng test --watch=false     # équivalent via le CLI Angular
 ```
 
 La suite couvre l'application, le contrat de `DataService` (compétences,
-approbations, progression), le catalogue des sept formats, le quiz final et son
-seuil de 75 %, le verrouillage des étapes, la délivrance du certificat,
-l'authentification simulée, les gardes de route (`authGuard`, `roleGuard`), la
-conversion des statuts en tonalités visuelles et le rendu des écrans de
-formation.
+approbations, progression), le parcours complet de formation validée
+(demande → décision → génération → progression → clôture), l'évaluation dans un
+format choisi (réussite et échec), les notifications par rôle et l'entretien
+diagnostique, ainsi que le catalogue des sept formats, le quiz historique et son
+seuil, les gardes de route et le rendu des écrans.
 
-État actuel : **7 fichiers, 41 tests au vert**.
+État actuel : **8 fichiers, 50 tests au vert**.
 
 ---
 
 ## 10. Limites connues du prototype
 
 - Données fictives, aucune persistance : un rechargement réinitialise les
-  décisions d'approbation et la progression des modules.
+  demandes de formation, les décisions d'approbation et la progression.
+- Le contenu des formations et des évaluations est généré de façon
+  déterministe côté frontend ; aucun moteur pédagogique réel n'est branché.
 - L'évaluation finale reste accessible en mode démonstration même si le parcours
   n'est pas terminé à 100 % ; un bandeau le signale explicitement.
-- Le quiz, l'évaluation pratique et le feedback utilisent un jeu de questions et
-  de critères prédéfinis ; aucun moteur de correction réel n'est branché.
 - Pas d'authentification réelle (pas de JWT, pas de mot de passe).
-- Chat de l'entretien IA simulé par un jeu de réponses prédéfinies.
-- Téléchargement des certificats PDF désactivé.
-- Le radar et le graphique d'écarts sont calculés à partir du même jeu de
-  compétences que la page « Mes compétences ».
+- L'entretien IA enchaîne des questions et activités prédéfinies ; il n'y a pas
+  de modèle de langage connecté.
+- Téléchargement des certificats PDF désactivé ; les rapports CSV/PDF RH sont
+  simulés.
 
 ---
 

@@ -1,0 +1,122 @@
+<div class="wa-page">
+  <wa-page-header
+    title="Besoins de formation"
+    subtitle="Écarts de compétences agrégés par compétence et par département. Aucun détail nominatif n’est exposé : cette vue sert à prioriser la politique de formation."
+  >
+    <span class="wa-chip wa-chip--warning">Données de démonstration</span>
+    <a mat-stroked-button routerLink="/app/rapports">Générer un rapport</a>
+  </wa-page-header>
+
+  <div class="wa-grid wa-grid--kpi">
+    <wa-kpi-card label="Besoins prioritaires" [value]="highCount()" icon="priority_high" tone="amber" hint="Compétences de priorité haute" />
+    <wa-kpi-card label="Compétences concernées" [value]="employeesConcerned()" icon="radar" tone="blue" hint="À couvrir dans le plan de formation" />
+    <wa-kpi-card label="Écart moyen" [value]="averageGap()" unit=" pts" icon="trending_down" tone="violet" hint="Tous besoins confondus" />
+    <wa-kpi-card label="Départements" [value]="departments().length - 1" icon="apartment" tone="green" hint="Périmètres analysés" />
+  </div>
+
+  <div class="wa-grid wa-grid--2 wa-section">
+    <div class="wa-card">
+      <div class="wa-card__title">Écart moyen par compétence</div>
+      <div class="wa-card__subtitle">Distance moyenne entre le niveau estimé et la cible du poste.</div>
+      <div echarts [options]="gapChart()" class="chart"></div>
+    </div>
+
+    <div class="wa-card">
+      <div class="wa-card__title">Lecture RH</div>
+      <div class="wa-card__subtitle">
+        Ces agrégats orientent les décisions collectives. Ils ne permettent pas d’évaluer une
+        personne et ne déclenchent aucune décision automatique.
+      </div>
+      <ul class="principles">
+        <li>
+          <span class="material-symbols-outlined">shield_person</span>
+          Aucune donnée nominative dans cette page.
+        </li>
+        <li>
+          <span class="material-symbols-outlined">verified_user</span>
+          Toute formation est validée par le superviseur avant d’être accessible.
+        </li>
+        <li>
+          <span class="material-symbols-outlined">school</span>
+          Chaque besoin propose un ou plusieurs formats adaptés parmi les sept du CDC.
+        </li>
+        <li>
+          <span class="material-symbols-outlined">insights</span>
+          La tendance indique l’évolution de l’écart sur les six derniers mois.
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="wa-card wa-section">
+    <div class="toolbar">
+      <label class="wa-field">
+        <span class="wa-field__label">Département</span>
+        <select
+          class="wa-select"
+          [value]="departmentFilter()"
+          (change)="departmentFilter.set($any($event.target).value)"
+        >
+          @for (department of departments(); track department) {
+            <option [value]="department">
+              {{ department === 'ALL' ? 'Tous les départements' : department }}
+            </option>
+          }
+        </select>
+      </label>
+      <label class="wa-field">
+        <span class="wa-field__label">Priorité</span>
+        <select
+          class="wa-select"
+          [value]="priorityFilter()"
+          (change)="priorityFilter.set($any($event.target).value)"
+        >
+          <option value="ALL">Toutes les priorités</option>
+          <option value="HIGH">Haute</option>
+          <option value="MEDIUM">Moyenne</option>
+          <option value="LOW">Basse</option>
+        </select>
+      </label>
+      <span class="wa-muted wa-small toolbar__count">{{ filtered().length }} besoin(s)</span>
+    </div>
+
+    @if (filtered().length === 0) {
+      <div class="wa-empty">Aucun besoin ne correspond à ces filtres.</div>
+    } @else {
+      <table class="wa-table">
+        <thead>
+          <tr>
+            <th>Compétence</th>
+            <th>Département</th>
+            <th>Collaborateurs</th>
+            <th>Écart moyen</th>
+            <th>Tendance</th>
+            <th>Priorité</th>
+            <th>Formats recommandés</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (need of filtered(); track need.id) {
+            <tr>
+              <td><strong>{{ need.skill }}</strong></td>
+              <td class="wa-muted">{{ need.department }}</td>
+              <td>{{ need.employeesConcerned }}</td>
+              <td><strong>−{{ need.averageGap }} pts</strong></td>
+              <td>
+                <span class="wa-small trend--up">+{{ need.trend }} pts</span>
+              </td>
+              <td><span [class]="priorityTone(need.priority)">{{ priorityLabel(need.priority) }}</span></td>
+              <td>
+                <span class="formats">
+                  @for (format of need.recommendedFormats; track format) {
+                    <span class="wa-chip wa-chip--neutral">{{ formatLabel[format] }}</span>
+                  }
+                </span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+</div>
