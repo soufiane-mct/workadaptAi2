@@ -338,8 +338,11 @@ export class EvaluationService {
           }
         } else {
           const text = typeof answer === 'string' ? answer : '';
-          const ratio = text.trim().length < 40 ? 0 : 0.35 + 0.65 * coverage(text, words(question.explanation).slice(0, 8));
-          earned += question.points * Math.min(1, ratio);
+          // Règle affichée dans l'épreuve : une réponse non justifiée
+          // (aucune notion attendue réellement couverte) ne rapporte aucun point.
+          const covered = coverage(text, words(question.explanation).slice(0, 8));
+          const ratio = text.trim().length < 40 ? 0 : covered >= 0.25 ? covered : 0;
+          earned += question.points * ratio;
           if (ratio < 0.7) {
             notes.push(question.explanation);
           }
@@ -448,7 +451,8 @@ export class EvaluationService {
       return {
         id: question.id,
         label: `Entretien : ${question.prompt}`,
-        weight: max,
+        // Ligne de détail : seule la synthèse « dossier-defense » (15 %) compte.
+        weight: 0,
         earned: Math.round(max * ratio * 10) / 10,
         max,
         comment:
