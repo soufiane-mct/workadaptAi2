@@ -1,90 +1,77 @@
-<div class="login">
-  <section class="login__brand">
-    <div class="brandline">
-      <div class="brandline__mark">WA</div>
-      <div>
-        <div class="brandline__name">WorkAdapt AI</div>
-        <div class="brandline__tag">Plateforme multi-agents</div>
-      </div>
+<div class="auth">
+  <section class="auth__intro">
+    <div class="intro__badge">
+      <span class="material-symbols-outlined">hub</span>
+      <span>WorkAdapt AI</span>
     </div>
-
-    <span class="eyebrow">
-      <span class="eyebrow__dot"></span>
-      Boucle d’apprentissage responsable
-    </span>
-
-    <h1>Transformer les données professionnelles autorisées en opportunités d’apprentissage.</h1>
-    <p class="lede">
-      Collecte responsable sur le poste, analyse des compétences, parcours personnalisé, validation
-      humaine, évaluation et certification — dans une seule boucle.
+    <h1>La boucle complète : observer, comprendre, former, prouver.</h1>
+    <p>
+      Collecte permanente, écarts de compétence expliqués, sept formats de formation
+      et cinq méthodes d’évaluation réellement distinctes. Chaque certificat est
+      adossé à une preuve.
     </p>
-
-    <ul class="points">
-      <li><span class="material-symbols-outlined">shield</span> Filtrage local, aucune frappe ni capture d’écran</li>
-      <li><span class="material-symbols-outlined">insights</span> Estimations accompagnées d’un niveau de confiance</li>
-      <li><span class="material-symbols-outlined">verified_user</span> Validation humaine avant tout parcours</li>
-      <li><span class="material-symbols-outlined">autorenew</span> Boucle continue : collecte → analyse → formation → évaluation</li>
+    <ul class="intro__list">
+      <li><span class="material-symbols-outlined">sensors</span> La collecte ne s’arrête jamais.</li>
+      <li><span class="material-symbols-outlined">route</span> Un curriculum complet avant validation.</li>
+      <li><span class="material-symbols-outlined">verified</span> Certificat uniquement après réussite.</li>
     </ul>
-
-    <div class="disclaimer">
-      Prototype de démonstration — données fictives, aucun backend connecté.
-    </div>
+    <p class="intro__note">Démonstration : données simulées, aucun serveur connecté.</p>
   </section>
 
-  <section class="login__panel">
-    <div class="mobile-brand">
-      <span class="brandline__mark">WA</span>
-      <div>
-        <div class="mobile-brand__name">WorkAdapt AI</div>
-        <div class="mobile-brand__tag">Plateforme multi-agents</div>
-      </div>
-    </div>
-
-    <div class="card">
+  <section class="auth__panel">
+    <header class="panel__head">
       <h2>Connexion</h2>
-      <p class="card__sub">Choisissez un profil de démonstration pour explorer l’application.</p>
+      <p>Choisissez un compte de démonstration pour explorer la boucle.</p>
+    </header>
 
-      <div class="roles">
-        @for (option of options; track option.role) {
+    <form (submit)="submit($event)">
+      <div class="roles" role="radiogroup" aria-label="Rôle">
+        @for (role of roles; track role) {
           <button
             type="button"
             class="role"
-            [class.role--active]="selected() === option.role"
-            (click)="selectRole(option.role)"
+            [class.role--selected]="selected() === role"
+            (click)="select(role)"
+            role="radio"
+            [attr.aria-checked]="selected() === role"
           >
-            <span class="material-symbols-outlined role__icon">{{ option.icon }}</span>
-            <span class="role__title">{{ option.title }}</span>
-            <span class="role__desc">{{ option.description }}</span>
-            @if (selected() === option.role) {
-              <span class="material-symbols-outlined role__check">check_circle</span>
-            }
+            <strong>{{ labels[role] }}</strong>
+            <small>{{ descriptions[role] }}</small>
           </button>
         }
       </div>
 
-      <mat-form-field appearance="outline" class="full">
-        <mat-label>Adresse e-mail</mat-label>
-        <input matInput [value]="email()" readonly />
-      </mat-form-field>
+      <label class="wa-field">
+        <span class="wa-field__label">Adresse professionnelle</span>
+        <input
+          class="wa-input"
+          type="email"
+          [value]="email()"
+          (input)="email.set($any($event.target).value)"
+          autocomplete="username"
+        />
+      </label>
 
-      <div class="identity">
-        <span class="identity__avatar">{{ selectedAccount().initials }}</span>
-        <div>
-          <div class="identity__name">{{ selectedAccount().name }}</div>
-          <div class="identity__meta">
-            {{ selectedAccount().jobTitle }} — {{ selectedAccount().department }}
-          </div>
-        </div>
-      </div>
+      <label class="wa-field">
+        <span class="wa-field__label">Mot de passe</span>
+        <input
+          class="wa-input"
+          type="password"
+          [value]="password()"
+          (input)="password.set($any($event.target).value)"
+          autocomplete="current-password"
+        />
+      </label>
 
-      <button mat-flat-button class="full submit" type="button" (click)="connect()">
-        Se connecter en tant que {{ roleLabels[selected()] }}
+      <button class="submit" type="submit">
+        <span class="material-symbols-outlined">login</span>
+        Se connecter en tant que {{ labels[selected()] }}
       </button>
+    </form>
 
-      <p class="card__foot">
-        <span class="material-symbols-outlined">lock</span>
-        Démonstration : données fictives, aucun backend connecté.
-      </p>
-    </div>
+    <p class="panel__foot">
+      Nouveau collaborateur ?
+      <a routerLink="/register">Créer un profil et lancer le diagnostic</a>
+    </p>
   </section>
 </div>

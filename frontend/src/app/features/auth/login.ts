@@ -1,57 +1,20 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
-import { MatButtonModule } from '@angular/material/button';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { Router, RouterLink, ActivatedRoute } from '@angular/router';
 import { Role, ROLE_LABELS } from '../../core/models';
-import { DEMO_ACCOUNTS } from '../../core/data/mock-data';
 import { AuthService } from '../../core/auth/auth.service';
 
-interface RoleOption {
-  role: Role;
-  title: string;
-  description: string;
-  icon: string;
-}
+const ROLES: Role[] = ['EMPLOYEE', 'MANAGER', 'RH', 'ADMIN'];
 
-/** Page d'accueil après connexion, selon le rôle. */
-const LANDING: Record<Role, string> = {
-  EMPLOYEE: '/app/tableau-de-bord',
-  MANAGER: '/app/validations',
-  RH: '/app/rh',
-  ADMIN: '/app/agents',
+const DESCRIPTIONS: Record<Role, string> = {
+  EMPLOYEE: 'Suivre ses écarts, sa formation et ses certificats.',
+  MANAGER: 'Valider les parcours et suivre son équipe.',
+  RH: 'Piloter les besoins et les indicateurs agrégés.',
+  ADMIN: 'Superviser la plateforme et les agents IA.',
 };
-
-const OPTIONS: RoleOption[] = [
-  {
-    role: 'EMPLOYEE',
-    title: 'Employé',
-    description: 'Profil, compétences, parcours et certificats.',
-    icon: 'person',
-  },
-  {
-    role: 'MANAGER',
-    title: 'Superviseur',
-    description: 'Validation des parcours et suivi de l’équipe.',
-    icon: 'approval',
-  },
-  {
-    role: 'RH',
-    title: 'Ressources humaines',
-    description: 'Tendances, besoins de formation et indicateurs.',
-    icon: 'groups',
-  },
-  {
-    role: 'ADMIN',
-    title: 'Administrateur',
-    description: 'Comptes, rôles, audit et agents IA.',
-    icon: 'settings',
-  },
-];
 
 @Component({
   selector: 'wa-login',
-  imports: [MatButtonModule, MatFormFieldModule, MatInputModule],
+  imports: [RouterLink],
   templateUrl: './login.html',
   styleUrl: './login.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -59,24 +22,33 @@ const OPTIONS: RoleOption[] = [
 export class Login {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
-  readonly options = OPTIONS;
+  readonly roles = ROLES;
+  readonly labels = ROLE_LABELS;
+  readonly descriptions = DESCRIPTIONS;
   readonly selected = signal<Role>('EMPLOYEE');
-  readonly email = signal(DEMO_ACCOUNTS[0].email);
-  readonly demoAccounts = DEMO_ACCOUNTS;
-  readonly roleLabels = ROLE_LABELS;
+  readonly email = signal('soufiane.mechta@workadapt.demo');
+  readonly password = signal('demo');
 
-  readonly selectedAccount = computed(
-    () => DEMO_ACCOUNTS.find((account) => account.role === this.selected()) ?? DEMO_ACCOUNTS[0],
-  );
-
-  selectRole(role: Role): void {
+  select(role: Role): void {
     this.selected.set(role);
-    this.email.set(this.selectedAccount().email);
+    const emails: Record<Role, string> = {
+      EMPLOYEE: 'soufiane.mechta@workadapt.demo',
+      MANAGER: 'ahmed.elfellah@workadapt.demo',
+      RH: 'kawtar.souiyah@workadapt.demo',
+      ADMIN: 'yassine.berrada@workadapt.demo',
+    };
+    this.email.set(emails[role]);
   }
 
-  connect(): void {
+  submit(event: Event): void {
+    event.preventDefault();
+    if (!this.email().trim() || !this.password().trim()) {
+      return;
+    }
     this.auth.login(this.selected());
-    this.router.navigate([LANDING[this.selected()]]);
+    const redirect = this.route.snapshot.queryParamMap.get('redirect');
+    void this.router.navigateByUrl(redirect ?? '/app/tableau-de-bord');
   }
 }

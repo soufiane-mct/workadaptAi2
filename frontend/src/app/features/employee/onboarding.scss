@@ -1,0 +1,259 @@
+.onboarding {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.onboarding--public {
+  max-width: 1040px;
+  padding: 24px 28px 56px;
+}
+
+.public-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--wa-border);
+}
+
+.public-head__brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 700;
+}
+
+.public-head__brand .material-symbols-outlined {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--wa-grad-brand);
+  color: #fff;
+  font-size: 19px;
+}
+
+.public-head a {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--wa-primary-deep);
+}
+
+.onboarding__intro h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+
+.onboarding__intro p {
+  margin: 0;
+  max-width: 760px;
+  color: var(--wa-ink-soft);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.onboarding__form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wa-card {
+  padding: 20px 22px;
+}
+
+.grid {
+  display: grid;
+  gap: 14px;
+}
+
+.grid--2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.formats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.format {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--wa-border);
+  background: var(--wa-surface-2);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.format .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.format--on {
+  border-color: var(--wa-primary);
+  background: var(--wa-primary-soft);
+  color: var(--wa-primary-deep);
+  font-weight: 600;
+}
+
+.upload {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px dashed var(--wa-border-strong);
+  border-radius: 12px;
+  cursor: pointer;
+  background: var(--wa-surface-2);
+}
+
+.upload .material-symbols-outlined {
+  color: var(--wa-primary);
+}
+
+.upload span {
+  display: flex;
+  flex-direction: column;
+}
+
+.upload small {
+  font-size: 11px;
+  color: var(--wa-ink-soft);
+}
+
+.upload input {
+  margin-left: auto;
+  font-size: 11.5px;
+}
+
+.extraction {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--wa-primary-soft);
+}
+
+.extraction p {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.trainings {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.training-row {
+  display: grid;
+  grid-template-columns: 2fr 1.4fr 100px 40px;
+  gap: 8px;
+  align-items: center;
+}
+
+.ghost {
+  border: 1px solid var(--wa-border);
+  background: #fff;
+  border-radius: 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--wa-ink-soft);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+.ghost--add {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.consent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 12.5px;
+}
+
+.check span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.check small {
+  color: var(--wa-ink-soft);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 11px;
+  padding: 12px 18px;
+  background: var(--wa-grad-brand);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.feedback {
+  margin: 0;
+  padding: 11px 14px;
+  border-radius: 11px;
+  font-size: 12.5px;
+}
+
+.feedback--error {
+  background: var(--wa-danger-soft);
+  color: #a21c12;
+}
+
+.feedback--ok {
+  background: var(--wa-success-soft);
+  color: #0a6b3d;
+}
+
+@media (max-width: 760px) {
+  .grid--2,
+  .training-row {
+    grid-template-columns: 1fr;
+  }
+  .onboarding--public {
+    padding: 18px 14px 40px;
+  }
+}

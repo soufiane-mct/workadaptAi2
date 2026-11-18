@@ -1,0 +1,224 @@
+@if (request(); as req) {
+  @if (program(); as prog) {
+    <div
+      class="workspace"
+      [style.--ws-accent]="accent().accent"
+      [style.--ws-accent-soft]="accent().soft"
+      [style.--ws-head-bg]="accent().head"
+    >
+      <header class="ws-head">
+        <div>
+          <a class="ws-badge" routerLink="/app/formations">
+            <span class="material-symbols-outlined">arrow_back</span>
+            Mes formations
+          </a>
+          <h1>{{ prog.title }}</h1>
+          <p>{{ prog.summary }}</p>
+          <div class="ws-head__meta">
+            <span class="ws-badge">{{ formatLabels[prog.format] }}</span>
+            <span class="ws-badge">{{ prog.estimatedHours }} h · {{ prog.estimatedDays }} jours</span>
+            <span class="ws-badge">{{ doneCount() }} / {{ unitCount() }} unités</span>
+            <span class="ws-badge">{{ statusLabels[req.status] }}</span>
+          </div>
+          <div class="ws-progress">
+            <span [style.width.%]="req.progressPercent"></span>
+          </div>
+        </div>
+      </header>
+
+      @if (req.supervisorNote) {
+        <section class="ws-panel supervisor">
+          <span class="ws-tag">Décision du superviseur</span>
+          <p class="wa-small" style="margin: 8px 0 0">{{ req.supervisorNote }}</p>
+          @if (req.modification; as modification) {
+            <p class="wa-small wa-muted" style="margin: 6px 0 0">
+              {{ modification.removedUnits.length }} unité(s) retirée(s) · durée ajustée à
+              {{ prog.estimatedHours }} h · {{ modification.at.slice(0, 10) }}
+            </p>
+          }
+        </section>
+      }
+
+      @if (isPending()) {
+        <p class="ws-note">
+          Le curriculum complet est généré et visible. Il est en attente de validation du
+          superviseur : il peut approuver, retirer des unités ou rejeter avec un motif.
+        </p>
+      }
+
+      @if (canStart()) {
+        <section class="ws-panel start">
+          <div>
+            <h2>Prêt à démarrer</h2>
+            <p class="ws-panel__sub" style="margin-bottom: 0">
+              {{ prog.estimatedHours }} h estimées, {{ unitCount() }} unités,
+              {{ prog.completion.passScore }}/100 requis à l’évaluation finale.
+              La collecte continue pendant toute la formation.
+            </p>
+          </div>
+          <button class="btn btn--primary" type="button" (click)="start()">
+            <span class="material-symbols-outlined">play_arrow</span>
+            Démarrer la formation
+          </button>
+        </section>
+      }
+
+      @if (req.status === 'REJECTED' || req.status === 'CANCELLED') {
+        <p class="ws-note">
+          Ce parcours n’est pas actif. Le motif est conservé dans la décision du superviseur.
+        </p>
+      }
+
+      @switch (prog.format) {
+        @case ('MULTIMEDIA') {
+          <wa-multimedia-workspace
+            [request]="req"
+            [program]="prog"
+            [progress]="progress_()"
+            [editable]="editable()"
+          />
+        }
+        @case ('INTERACTIVE') {
+          <wa-interactive-workspace
+            [request]="req"
+            [program]="prog"
+            [progress]="progress_()"
+            [editable]="editable()"
+          />
+        }
+        @case ('PRACTICAL') {
+          <wa-practical-workspace
+            [request]="req"
+            [program]="prog"
+            [progress]="progress_()"
+            [editable]="editable()"
+          />
+        }
+        @case ('PROJECT') {
+          <wa-project-workspace
+            [request]="req"
+            [program]="prog"
+            [progress]="progress_()"
+            [editable]="editable()"
+          />
+        }
+        @case ('SIMULATION') {
+          <wa-simulation-workspace
+            [request]="req"
+            [program]="prog"
+            [progress]="progress_()"
+            [editable]="editable()"
+          />
+        }
+        @case ('AI_TUTORED') {
+          <wa-ai-tutored-workspace
+            [request]="req"
+            [program]="prog"
+            [progress]="progress_()"
+            [editable]="editable()"
+          />
+        }
+        @case ('COLLABORATIVE') {
+          <wa-collaborative-workspace
+            [request]="req"
+            [program]="prog"
+            [progress]="progress_()"
+            [editable]="editable()"
+          />
+        }
+      }
+
+      @if (editable()) {
+        <section class="ws-panel">
+          <h2>Preuve de fin — {{ capstoneLabel() }}</h2>
+          <p class="ws-panel__sub">
+            La formation se termine uniquement lorsque toutes les unités sont faites, les
+            checkpoints validés et cette preuve déposée. Rien n’est contournable.
+          </p>
+          @if (progress()?.capstoneValidated) {
+            <p class="ws-note" style="background: var(--wa-success-soft); color: #0a6b3d">
+              Preuve de fin validée. Vous pouvez clôturer la formation.
+            </p>
+          } @else {
+            @if (completion().missing.length > 0) {
+              <ul class="missing">
+                @for (item of completion().missing; track item) {
+                  <li>{{ item }}</li>
+                }
+              </ul>
+            }
+            <label class="wa-field">
+              <span class="wa-field__label">Déposer la preuve (texte ou référence de fichier)</span>
+              <textarea
+                class="wa-textarea"
+                rows="3"
+                [value]="capstoneProof()"
+                (input)="setProof($any($event.target).value)"
+                placeholder="Décrivez le livrable produit, son emplacement et ce qu’il démontre."
+              ></textarea>
+            </label>
+            <div class="ws-actions">
+              <button
+                class="btn"
+                type="button"
+                [disabled]="!canSubmitCapstone()"
+                (click)="submitCapstone()"
+              >
+                <span class="material-symbols-outlined">upload_file</span>
+                Déposer la preuve de fin
+              </button>
+            </div>
+          }
+
+          @if (completion().ready) {
+            <div class="ws-actions" style="margin-top: 12px">
+              <button class="btn btn--primary" type="button" (click)="complete()">
+                <span class="material-symbols-outlined">flag</span>
+                Clôturer la formation et passer à l’évaluation
+              </button>
+            </div>
+          }
+          @if (feedback()) {
+            <p class="wa-small" style="margin: 10px 0 0">{{ feedback() }}</p>
+          }
+        </section>
+      }
+
+      @if (isCompleted()) {
+        <section class="ws-panel done">
+          <h2>Formation terminée</h2>
+          <p class="ws-panel__sub">
+            La preuve de fin a été réinjectée dans la collecte : le niveau a été recalculé et
+            l’écart est en attente de la preuve d’évaluation.
+          </p>
+          <div class="ws-actions">
+            @if (certificate(); as certificate) {
+              <a class="btn btn--primary" [routerLink]="['/app/certificats', certificate.id]">
+                <span class="material-symbols-outlined">workspace_premium</span>
+                Voir le certificat {{ certificate.id }}
+              </a>
+            } @else if (evaluation(); as evaluation) {
+              <a class="btn btn--primary" [routerLink]="['/app/evaluations', req.id]">
+                <span class="material-symbols-outlined">grading</span>
+                Reprendre mon évaluation
+              </a>
+            } @else {
+              <a class="btn btn--primary" [routerLink]="['/app/evaluations', req.id]">
+                <span class="material-symbols-outlined">psychology</span>
+                Choisir ma méthode d’évaluation
+              </a>
+            }
+          </div>
+          <p class="wa-small wa-muted" style="margin-top: 10px">
+            Cinq méthodes distinctes sont disponibles. Vous choisissez après la formation, jamais
+            avant.
+          </p>
+        </section>
+      }
+    </div>
+  } @else {
+    <p class="wa-empty">Programme introuvable.</p>
+  }
+} @else {
+  <p class="wa-empty">Demande de formation introuvable.</p>
+}

@@ -1,33 +1,28 @@
-<mat-sidenav-container class="shell">
-  <mat-sidenav
-    #sidenav
-    class="shell__nav"
-    [mode]="sidenavMode()"
-    [opened]="!isHandset()"
-  >
-    <div class="brand">
-      <div class="brand__mark">WA</div>
-      <div class="brand__text">
-        <div class="brand__name">WorkAdapt AI</div>
-        <div class="brand__tag">Développement continu</div>
-      </div>
-    </div>
+<div class="shell" [class.shell--mobile]="mobile()">
+  <aside class="side" [class.side--open]="menuOpen()">
+    <a class="brand" routerLink="/app/tableau-de-bord" (click)="closeOnNavigate()">
+      <span class="brand__mark material-symbols-outlined">hub</span>
+      <span class="brand__text">
+        <strong>WorkAdapt</strong>
+        <small>AI · apprentissage continu</small>
+      </span>
+    </a>
 
     <nav class="nav">
-      @for (group of navGroups(); track group.title) {
-        <div class="nav-group">
-          <div class="nav-group__title">{{ group.title }}</div>
+      @for (group of groups(); track group.title) {
+        <div class="nav__group">
+          <p class="nav__title">{{ group.title }}</p>
           @for (item of group.items; track item.path) {
             <a
-              class="nav-item"
+              class="nav__link"
               [routerLink]="item.path"
-              routerLinkActive="nav-item--active"
-              (click)="isHandset() && sidenav.close()"
+              routerLinkActive="nav__link--active"
+              (click)="closeOnNavigate()"
             >
-              <span class="material-symbols-outlined nav-item__icon">{{ item.icon }}</span>
-              <span class="nav-item__label">{{ item.label }}</span>
+              <span class="material-symbols-outlined">{{ item.icon }}</span>
+              <span class="nav__label">{{ item.label }}</span>
               @if (item.badge) {
-                <span class="nav-item__badge">{{ item.badge }}</span>
+                <span class="nav__badge">{{ item.badge }}</span>
               }
             </a>
           }
@@ -35,100 +30,46 @@
       }
     </nav>
 
-    <div class="nav-foot">
-      <span class="nav-foot__dot"></span>
-      <div>
-        <div class="nav-foot__label">Mode démonstration</div>
-        <div class="nav-foot__text">Données fictives — backend non connecté.</div>
-      </div>
+    <div class="side__foot">
+      <span class="demo">Mode démo · temps ×20</span>
+      <small>Données simulées, aucun backend connecté.</small>
     </div>
-  </mat-sidenav>
+  </aside>
 
-  <mat-sidenav-content class="shell__content">
-    <mat-toolbar class="topbar">
-      @if (isHandset()) {
-        <button mat-icon-button type="button" aria-label="Ouvrir le menu" (click)="sidenav.toggle()">
+  @if (mobile() && menuOpen()) {
+    <div class="backdrop" (click)="toggleMenu()"></div>
+  }
+
+  <div class="main">
+    <header class="topbar">
+      @if (mobile()) {
+        <button class="icon-btn" type="button" (click)="toggleMenu()" aria-label="Ouvrir le menu">
           <span class="material-symbols-outlined">menu</span>
         </button>
       }
-      <span class="topbar__title">{{ pageTitle() }}</span>
-      <span class="topbar__spacer"></span>
+      <div class="topbar__spacer"></div>
 
-      <button
-        mat-icon-button
-        type="button"
-        class="bell"
-        [matMenuTriggerFor]="notifMenu"
-        aria-label="Notifications"
-      >
+      <a class="bell" routerLink="/app/notifications" aria-label="Notifications">
         <span class="material-symbols-outlined">notifications</span>
-        @if (unreadCount() > 0) {
-          <span class="bell__badge">{{ unreadCount() }}</span>
+        @if (unread()) {
+          <span class="bell__count">{{ unread() }}</span>
         }
-      </button>
+      </a>
 
-      <mat-menu #notifMenu="matMenu" class="notif-menu" xPosition="before">
-        <div class="notif-head">
-          <span class="notif-head__title">Notifications</span>
-          @if (unreadCount() > 0) {
-            <button type="button" class="notif-head__action" (click)="markAllRead()">
-              Tout marquer comme lu
-            </button>
-          }
-        </div>
-
-        @if (notifications().length === 0) {
-          <div class="notif-empty">Aucune notification pour votre rôle.</div>
-        }
-
-        @for (notification of notifications(); track notification.id) {
-          <button
-            mat-menu-item
-            type="button"
-            class="notif-item"
-            [class.notif-item--unread]="!notification.read"
-            (click)="openNotification(notification)"
-          >
-            <span class="material-symbols-outlined notif-item__icon">
-              {{ notificationIcon(notification.type) }}
-            </span>
-            <span class="notif-item__body">
-              <span class="notif-item__title">{{ notification.title }}</span>
-              <span class="notif-item__text">{{ notification.message }}</span>
-            </span>
-            @if (!notification.read) {
-              <span class="notif-item__dot"></span>
-            }
-          </button>
-        }
-
-        <button mat-menu-item type="button" class="notif-all" routerLink="/app/notifications">
-          <span class="material-symbols-outlined">open_in_new</span>
-          <span>Voir toutes les notifications</span>
-        </button>
-      </mat-menu>
-
-      <button mat-button type="button" class="user" [matMenuTriggerFor]="userMenu">
-        <span class="user__inner">
-          <span class="user__avatar">{{ user()?.initials }}</span>
-          <span class="user__text">
-            <span class="user__name">{{ user()?.name }}</span>
-            <span class="user__role">{{ roleLabel() }}</span>
-          </span>
-          <span class="material-symbols-outlined user__chevron">expand_more</span>
+      <div class="user">
+        <span class="user__avatar">{{ user()?.initials }}</span>
+        <span class="user__meta">
+          <strong>{{ user()?.name }}</strong>
+          <small>{{ roleLabel() }} · {{ user()?.jobTitle }}</small>
         </span>
-      </button>
-
-      <mat-menu #userMenu="matMenu">
-        <button mat-menu-item type="button" (click)="logout()">
+        <button class="icon-btn" type="button" (click)="logout()" aria-label="Se déconnecter">
           <span class="material-symbols-outlined">logout</span>
-          <span>Se déconnecter</span>
         </button>
-      </mat-menu>
-    </mat-toolbar>
+      </div>
+    </header>
 
-    <main class="shell__main">
+    <main class="content">
       <router-outlet />
     </main>
-  </mat-sidenav-content>
-</mat-sidenav-container>
+  </div>
+</div>

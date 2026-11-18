@@ -1,0 +1,194 @@
+<div class="onboarding" [class.onboarding--public]="isRegister()">
+  @if (isRegister()) {
+    <header class="public-head">
+      <div class="public-head__brand">
+        <span class="material-symbols-outlined">hub</span>
+        <span>WorkAdapt AI</span>
+      </div>
+      <a routerLink="/login">Déjà inscrit ? Se connecter</a>
+    </header>
+  }
+
+  <div class="onboarding__intro">
+    <h1>{{ isRegister() ? 'Créer votre profil professionnel' : 'Profil professionnel' }}</h1>
+    <p>
+      Ces informations alimentent le diagnostic initial. Elles sont enregistrées, transmises
+      à l’IA et restent modifiables à tout moment. La collecte permanente commence après
+      votre consentement.
+    </p>
+  </div>
+
+  <form class="onboarding__form" (submit)="submit($event)">
+    <section class="wa-card">
+      <h2 class="wa-card__title">Identité professionnelle</h2>
+      <p class="wa-card__subtitle">Le poste détermine les compétences attendues.</p>
+      <div class="grid grid--2">
+        <label class="wa-field">
+          <span class="wa-field__label">Prénom *</span>
+          <input class="wa-input" [value]="firstName()" (input)="firstName.set($any($event.target).value)" />
+        </label>
+        <label class="wa-field">
+          <span class="wa-field__label">Nom *</span>
+          <input class="wa-input" [value]="lastName()" (input)="lastName.set($any($event.target).value)" />
+        </label>
+        <label class="wa-field">
+          <span class="wa-field__label">Adresse professionnelle *</span>
+          <input class="wa-input" type="email" [value]="email()" (input)="email.set($any($event.target).value)" />
+        </label>
+        <label class="wa-field">
+          <span class="wa-field__label">Département</span>
+          <input class="wa-input" [value]="department()" (input)="department.set($any($event.target).value)" />
+        </label>
+        <label class="wa-field">
+          <span class="wa-field__label">Poste occupé *</span>
+          <input class="wa-input" [value]="jobTitle()" (input)="jobTitle.set($any($event.target).value)" placeholder="Ex. Développeur backend" />
+        </label>
+        <label class="wa-field">
+          <span class="wa-field__label">Domaine</span>
+          <select class="wa-select" [value]="domain()" (change)="domain.set($any($event.target).value)">
+            @for (option of domainOptions; track option.value) {
+              <option [value]="option.value">{{ option.label }} — {{ option.example }}</option>
+            }
+          </select>
+        </label>
+        <label class="wa-field">
+          <span class="wa-field__label">Séniorité</span>
+          <select class="wa-select" [value]="seniority()" (change)="seniority.set($any($event.target).value)">
+            @for (level of seniorities; track level) {
+              <option [value]="level">{{ seniorityLabels[level] }}</option>
+            }
+          </select>
+        </label>
+        <label class="wa-field">
+          <span class="wa-field__label">Disponibilité hebdomadaire (heures)</span>
+          <input
+            class="wa-input"
+            type="number"
+            min="1"
+            max="20"
+            [value]="weeklyHours()"
+            (input)="weeklyHours.set(+$any($event.target).value)"
+          />
+        </label>
+      </div>
+    </section>
+
+    <section class="wa-card">
+      <h2 class="wa-card__title">Outils, projets et objectifs</h2>
+      <p class="wa-card__subtitle">Séparez les éléments par une virgule ou un retour à la ligne.</p>
+      <div class="grid">
+        <label class="wa-field">
+          <span class="wa-field__label">Outils utilisés au quotidien</span>
+          <input class="wa-input" [value]="tools()" (input)="tools.set($any($event.target).value)" placeholder="VS Code, Docker, Git, Jira" />
+        </label>
+        <label class="wa-field">
+          <span class="wa-field__label">Projets récents</span>
+          <input class="wa-input" [value]="projects()" (input)="projects.set($any($event.target).value)" placeholder="API de facturation, migration conteneurs" />
+        </label>
+        <label class="wa-field">
+          <span class="wa-field__label">Objectifs professionnels (une ligne par objectif)</span>
+          <textarea class="wa-textarea" rows="3" [value]="objectives()" (input)="objectives.set($any($event.target).value)"></textarea>
+        </label>
+      </div>
+    </section>
+
+    <section class="wa-card">
+      <h2 class="wa-card__title">Formats d’apprentissage préférés</h2>
+      <p class="wa-card__subtitle">
+        Une préférence, pas une contrainte : le format est ensuite recommandé selon l’écart.
+      </p>
+      <div class="formats">
+        @for (format of formats; track format) {
+          <button
+            type="button"
+            class="format"
+            [class.format--on]="isPreferred(format)"
+            (click)="toggleFormat(format)"
+          >
+            <span class="material-symbols-outlined">{{ isPreferred(format) ? 'check_circle' : 'circle' }}</span>
+            {{ formatLabels[format] }}
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="wa-card">
+      <h2 class="wa-card__title">CV et formations antérieures</h2>
+      <p class="wa-card__subtitle">PDF ou DOCX. L’extraction est simulée et reste vérifiable.</p>
+
+      <label class="upload">
+        <span class="material-symbols-outlined">upload_file</span>
+        <span>
+          <strong>Importer un CV</strong>
+          <small>PDF ou DOCX · analyse simulée</small>
+        </span>
+        <input type="file" accept=".pdf,.docx" (change)="onFile($event)" />
+      </label>
+
+      @if (cv(); as document) {
+        <div class="extraction">
+          <p><strong>{{ document.fileName }}</strong> — {{ document.skills.length }} compétences détectées</p>
+          <div class="chips">
+            @for (skill of document.skills; track skill) {
+              <span class="wa-chip wa-chip--info">{{ skill }}</span>
+            }
+          </div>
+        </div>
+      }
+
+      <div class="trainings">
+        @for (training of pastTrainings(); track training.id) {
+          <div class="training-row">
+            <input class="wa-input" placeholder="Intitulé" [value]="training.title" (input)="updatePastTraining(training.id, { title: $any($event.target).value })" />
+            <input class="wa-input" placeholder="Organisme" [value]="training.provider" (input)="updatePastTraining(training.id, { provider: $any($event.target).value })" />
+            <input class="wa-input" type="number" placeholder="Année" [value]="training.year" (input)="updatePastTraining(training.id, { year: +$any($event.target).value })" />
+            <button type="button" class="ghost" (click)="removePastTraining(training.id)" aria-label="Retirer">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        }
+        <button type="button" class="ghost ghost--add" (click)="addPastTraining()">
+          <span class="material-symbols-outlined">add</span>
+          Ajouter une formation antérieure
+        </button>
+      </div>
+    </section>
+
+    <section class="wa-card">
+      <h2 class="wa-card__title">Consentement</h2>
+      <div class="consent">
+        <label class="check">
+          <input type="checkbox" [checked]="consentCollect()" (change)="consentCollect.set($any($event.target).checked)" />
+          <span>
+            <strong>Je consens à la collecte permanente</strong>
+            <small>Applications, dépôts autorisés, formations et évaluations. Sans ce consentement, aucun écart ne peut être calculé.</small>
+          </span>
+        </label>
+        <label class="check">
+          <input type="checkbox" [checked]="consentShare()" (change)="consentShare.set($any($event.target).checked)" />
+          <span>
+            <strong>Je partage les résultats avec mon superviseur</strong>
+            <small>Il voit les formations et les décisions. Les RH ne reçoivent que des données agrégées.</small>
+          </span>
+        </label>
+      </div>
+    </section>
+
+    @if (error()) {
+      <p class="feedback feedback--error">{{ error() }}</p>
+    }
+    @if (message()) {
+      <p class="feedback feedback--ok">{{ message() }}</p>
+    }
+
+    <div class="actions">
+      <button class="primary" type="submit">
+        <span class="material-symbols-outlined">{{ isRegister() ? 'rocket_launch' : 'save' }}</span>
+        {{ isRegister() ? 'Créer mon profil et lancer le diagnostic' : 'Enregistrer et transmettre à l’IA' }}
+      </button>
+      @if (!isRegister()) {
+        <a class="ghost" routerLink="/app/tableau-de-bord">Annuler</a>
+      }
+    </div>
+  </form>
+</div>
