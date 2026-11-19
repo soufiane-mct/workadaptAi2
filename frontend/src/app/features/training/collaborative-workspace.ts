@@ -1,9 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
-import { CollaborativeProgram, TeamSprint } from '../../core/models';
+import { CollaborativeProgram, StepEvidence, TeamSprint } from '../../core/models';
+import { StepVerdict } from './step-verdict';
 import { WorkspaceBase } from './workspace-base';
 
 @Component({
   selector: 'wa-collaborative-workspace',
+  imports: [StepVerdict],
   template: `
     <div class="coop">
       <section class="ws-panel sprint-bar">
@@ -162,12 +164,14 @@ import { WorkspaceBase } from './workspace-base';
               [disabled]="!canClose(current)"
               (click)="close(current)"
             >
-              <span class="material-symbols-outlined">handshake</span>
-              {{ isDone(current.id) ? 'Sprint clôturé' : 'Clôturer le sprint' }}
+              <span class="material-symbols-outlined">fact_check</span>
+              {{ isDone(current.id) ? 'Sprint clôturé' : 'Faire vérifier par l’agent' }}
             </button>
             <p class="wa-small wa-muted" style="margin: 10px 0 0">
               Les revues ne sont pas anonymes : elles engagent leur auteur.
             </p>
+
+            <wa-step-verdict [verification]="verification()" />
           </aside>
         </div>
       }
@@ -428,6 +432,7 @@ export class CollaborativeWorkspace extends WorkspaceBase {
 
   openSprint(unitId: string): void {
     this.select(unitId);
+    this.verification.set(undefined);
   }
 
   isMine(assignee: string): boolean {
@@ -495,6 +500,10 @@ export class CollaborativeWorkspace extends WorkspaceBase {
     return this.contributionOk(sprint) && this.reviewsDone(sprint) && this.teamDelivered(sprint.id);
   }
 
+  /**
+   * Le sprint n’est clôturé que si l’agent valide la trace : contribution
+   * individuelle, revues par les pairs et dépôt du livrable d’équipe.
+   */
   close(sprint: TeamSprint): void {
     if (!this.canClose(sprint)) {
       return;
@@ -510,6 +519,47 @@ export class CollaborativeWorkspace extends WorkspaceBase {
       sprint.id,
       `Contribution : ${this.contribution(sprint.id)}\n\nRevues :\n${reviews}`,
     );
-    this.complete(sprint.id, sprint.estimatedMinutes);
+
+    const evidence: StepEvidence = {
+      unitId: sprint.id,
+      format: 'COLLABORATIVE',
+      kind: 'REVUE',
+      /* Les points de synchronisation concernent l'équipe : la
+       * contribution personnelle est la seule action imputée à l'employé. */
+      steps: [
+        {
+          label: sprint.individualTask,
+          done: this.contributionOk(sprint),
+          detail: this.contribution(sprint.id),
+        },
+      ],
+      decisions: sprint.roles
+        .filter((role) => this.isMine(role.assignee))
+        .map((role) => ({
+          label: `Rôle « ${role.name} » : ${role.mission}`,
+          done: this.contributionOk(sprint),
+          detail: this.contribution(sprint.id),
+        })),
+      criteria: sprint.peerReviewCriteria.map((criterion) => ({
+        label: criterion,
+        done: this.reviewsDone(sprint),
+        detail: reviews,
+      })),
+      narrative: `Contribution individuelle : ${this.contribution(
+        sprint.id,
+      )}\n\nRevues par les pairs :\n${reviews}\n\nLivrable d’équipe déposé : ${sprint.deliverable}`,
+      durationMinutes: this.minutesOn(sprint.id),
+      expectedMinutes: sprint.estimatedMinutes,
+    };
+
+    const verification = this.verifyStep({
+      unitId: sprint.id,
+      unitTitle: sprint.title,
+      format: 'COLLABORATIVE',
+      notions: [sprint.teamGoal, sprint.individualTask, sprint.deliverable],
+      evidence,
+    });
+
+    this.completeValidated(sprint.id, sprint.estimatedMinutes, verification);
   }
 }

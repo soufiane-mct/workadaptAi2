@@ -1,9 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
-import { MultimediaProgram } from '../../core/models';
+import { MultimediaProgram, StepEvidence } from '../../core/models';
+import { StepVerdict } from './step-verdict';
 import { WorkspaceBase } from './workspace-base';
 
 @Component({
   selector: 'wa-multimedia-workspace',
+  imports: [StepVerdict],
   template: `
     <div class="ws-body">
       <aside class="ws-panel">
@@ -47,7 +49,7 @@ import { WorkspaceBase } from './workspace-base';
                 <button
                   type="button"
                   [class.on]="mode() === tab.key"
-                  (click)="mode.set(tab.key)"
+                  (click)="openTab(tab.key)"
                 >
                   {{ tab.label }}
                 </button>
@@ -142,13 +144,15 @@ import { WorkspaceBase } from './workspace-base';
                 [disabled]="!editable() || isDone(ep.id) || !restitutionDone()"
                 (click)="finish(ep.id)"
               >
-                <span class="material-symbols-outlined">check_circle</span>
-                {{ isDone(ep.id) ? 'Épisode terminé' : 'Marquer l’épisode terminé' }}
+                <span class="material-symbols-outlined">fact_check</span>
+                {{ isDone(ep.id) ? 'Épisode terminé' : 'Faire vérifier par l’agent' }}
               </button>
               <span class="wa-small wa-muted">
                 Le dossier de synthèse final est demandé après tous les épisodes.
               </span>
             </div>
+
+            <wa-step-verdict [verification]="verification()" />
           </section>
         </main>
       }
@@ -298,6 +302,7 @@ export class MultimediaWorkspace extends WorkspaceBase {
   readonly mode = signal<'video' | 'article' | 'podcast'>('video');
   readonly notes = signal('');
   readonly restitutionDone = signal(false);
+  readonly visited = signal<Record<string, boolean>>({});
 
   readonly mm = computed(() => this.program() as MultimediaProgram);
   readonly episode = computed(() =>
@@ -309,6 +314,7 @@ export class MultimediaWorkspace extends WorkspaceBase {
     this.restitutionDone.set(false);
     this.notes.set('');
     this.mode.set('video');
+    this.verification.set(undefined);
   }
 
   saveNotes(): void {
@@ -318,10 +324,55 @@ export class MultimediaWorkspace extends WorkspaceBase {
     }
   }
 
+  /** La consultation de chaque support est tracée : c'est une donnée vérifiable. */
+  openTab(tab: 'video' | 'article' | 'podcast'): void {
+    this.mode.set(tab);
+    const episode = this.episode();
+    if (episode) {
+      this.visited.update((map) => ({ ...map, [`${episode.id}-${tab}`]: true }));
+    }
+  }
+
+  /**
+   * L’épisode n’est terminé que si l’agent valide la restitution : cocher
+   * « j’ai restitué » sans écrire ne suffit pas.
+   */
   finish(unitId: string): void {
+    const episode = this.episode();
+    if (!episode) {
+      return;
+    }
     this.saveNotes();
-    this.complete(unitId, this.episode()?.estimatedMinutes);
-    this.restitutionDone.set(false);
-    this.notes.set('');
+    const evidence: StepEvidence = {
+      unitId,
+      format: 'MULTIMEDIA',
+      kind: 'TEXTE',
+      steps: [
+        { label: 'Vidéo consultée', done: this.visited()[`${unitId}-video`] === true },
+        { label: 'Article lu', done: this.visited()[`${unitId}-article`] === true },
+        { label: 'Podcast écouté', done: this.visited()[`${unitId}-podcast`] === true },
+      ],
+      criteria: episode.keyPoints.map((point) => ({
+        label: point,
+        done: false,
+        detail: this.notes(),
+      })),
+      narrative: this.notes(),
+      durationMinutes: this.minutesOn(unitId),
+      expectedMinutes: episode.estimatedMinutes,
+    };
+
+    const verification = this.verifyStep({
+      unitId,
+      unitTitle: episode.title,
+      format: 'MULTIMEDIA',
+      notions: [episode.objective, ...episode.keyPoints],
+      evidence,
+    });
+
+    if (this.completeValidated(unitId, episode.estimatedMinutes, verification)) {
+      this.restitutionDone.set(false);
+      this.notes.set('');
+    }
   }
 }

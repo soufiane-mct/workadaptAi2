@@ -7,6 +7,7 @@ import {
   DataSource,
   OnboardingProfile,
   SkillGap,
+  StepVerdict,
 } from '../models';
 import { AuditService } from './audit.service';
 import { GapService } from './gap.service';
@@ -258,6 +259,43 @@ export class CollectionService {
       items.map((item) => (item.code === 'COLLECTOR' ? { ...item, status: 'CONNECTED' } : item)),
     );
     return this.runDailyCollection();
+  }
+
+  /**
+   * Réinjection d'un verdict de vérification d'étape : la collecte permanente
+   * conserve la trace de ce que l'agent a contrôlé à chaque étape, y compris
+   * les étapes renvoyées.
+   */
+  recordStepVerification(input: {
+    requestId: string;
+    unitId: string;
+    unitTitle: string;
+    verdict: StepVerdict;
+    score: number;
+    gaps: number;
+    agent: string;
+  }): CollectionEvent {
+    const event = this.toEvent(
+      {
+        source: 'TRAINING_STEP',
+        type: 'STEP_VERIFICATION',
+        label: `Étape ${input.verdict === 'VALIDE' ? 'validée' : 'renvoyée'} — ${input.unitTitle}`,
+        detail:
+          input.verdict === 'VALIDE'
+            ? `Preuve vérifiée par ${input.agent} (${input.score}/100).`
+            : `Preuve insuffisante (${input.score}/100) : ${input.gaps} point(s) bloquant(s) signalés par ${input.agent}.`,
+        skillCodes: [],
+        observed: true,
+        confidence: input.verdict === 'VALIDE' ? 0.88 : 0.7,
+        proof: `Vérification d’étape ${input.unitId}`,
+      },
+      0,
+      `sv-${input.requestId}-${input.unitId}`,
+    );
+
+    this._events.update((current) => [event, ...current]);
+    this.touchSources(['TRAINING_STEP']);
+    return event;
   }
 
   /**

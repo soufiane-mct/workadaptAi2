@@ -16,6 +16,7 @@ import { knowledgeFor } from './knowledge';
 import { INITIAL_TRAINING_REQUESTS } from './mock-data';
 import { NotificationService } from './notification.service';
 import { ProfileService } from './profile.service';
+import { StepVerificationService } from './step-verification.service';
 import { buildProgram } from './training/builders';
 import { BuildContext, capstoneOf, isoTimestamp, programUnits } from './training/helpers';
 import { WorkflowStateService } from './workflow-state.service';
@@ -39,6 +40,7 @@ export class TrainingService {
   private readonly notifications = inject(NotificationService);
   private readonly audit = inject(AuditService);
   private readonly workflow = inject(WorkflowStateService);
+  private readonly stepVerification = inject(StepVerificationService);
 
   private readonly _requests = signal<TrainingRequest[]>([...INITIAL_TRAINING_REQUESTS]);
   private readonly _programs = signal<TrainingProgram[]>([]);
@@ -402,27 +404,48 @@ export class TrainingService {
   /**
    * Termine une unité. Les minutes sont créditées réellement (temps
    * accéléré uniquement en mode démo, jamais les conditions de fin).
+   *
+   * Une unité ne peut être terminée que si l'agent d'analyse des preuves a
+   * validé la preuve de cette étape : cocher une case ne suffit pas.
    */
   completeUnit(
     requestId: string,
     unitId: string,
     options: { minutes?: number; checkpointPassed?: boolean; notes?: string } = {},
-  ): void {
+  ): { ok: boolean; message: string } {
     const request = this.requestById(requestId);
     const program = this.programFor(requestId);
     const progress = this.progressFor(requestId);
     if (!request || !program || !progress || request.status !== 'IN_PROGRESS') {
-      return;
+      return { ok: false, message: 'Parcours non démarré.' };
     }
 
     const units = programUnits(program);
     const index = progress.units.findIndex((unit) => unit.unitId === unitId);
     if (index < 0) {
-      return;
+      return { ok: false, message: 'Unité introuvable.' };
     }
     const unit = progress.units[index];
     if (unit.status === 'DONE') {
-      return;
+      return { ok: true, message: 'Unité déjà terminée.' };
+    }
+
+    const verification = this.stepVerification.lastFor(requestId, unitId);
+    if (!verification) {
+      return {
+        ok: false,
+        message:
+          'Aucune preuve n’a été transmise pour cette étape : l’agent doit vérifier vos données avant de la valider.',
+      };
+    }
+    if (verification.verdict !== 'VALIDE') {
+      return {
+        ok: false,
+        message:
+          verification.verdict === 'REJETE'
+            ? 'Étape renvoyée par l’agent : reprenez le travail et transmettez des traces vérifiables.'
+            : 'Étape incomplète : complétez la preuve demandée par l’agent, puis relancez la vérification.',
+      };
     }
     const definition = units[units.findIndex((item) => item.id === unitId)];
     const credited = options.minutes ?? definition?.minutes ?? 30;
@@ -471,6 +494,11 @@ export class TrainingService {
         employeeId: request.employeeId,
       });
     }
+
+    return {
+      ok: true,
+      message: `Étape validée par l’agent (${verification.score}/100) : ${definition?.title ?? unitId} terminée.`,
+    };
   }
 
   saveNotes(requestId: string, unitId: string, notes: string): void {

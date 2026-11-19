@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
-import { AiTutoredProgram, TutorSession } from '../../core/models';
+import { AiTutoredProgram, StepEvidence, TutorSession } from '../../core/models';
+import { StepVerdict } from './step-verdict';
 import { WorkspaceBase } from './workspace-base';
 
 interface ChatMessage {
@@ -16,6 +17,7 @@ function normalise(value: string): string {
 
 @Component({
   selector: 'wa-ai-tutored-workspace',
+  imports: [StepVerdict],
   template: `
     <div class="tutor">
       <aside class="ws-panel tutor__side">
@@ -168,11 +170,13 @@ function normalise(value: string): string {
                 [disabled]="!canFinish(current)"
                 (click)="finish(current)"
               >
-                <span class="material-symbols-outlined">school</span>
-                {{ isDone(current.id) ? 'Session validée' : 'Valider le teach-back' }}
+                <span class="material-symbols-outlined">fact_check</span>
+                {{ isDone(current.id) ? 'Session validée' : 'Faire vérifier par l’agent' }}
               </button>
               <span class="wa-small wa-muted">{{ keywordCount() }} / {{ current.teachBack.keywords.length }} notions couvertes</span>
             </div>
+
+            <wa-step-verdict [verification]="verification()" />
           </section>
 
           <section class="ws-panel final">
@@ -446,14 +450,19 @@ export class AiTutoredWorkspace extends WorkspaceBase {
 
   readonly keywordCount = computed(() => this.countKeywords(this.teachBack()));
 
-  constructor() {
-    super();
+  /**
+   * Le dialogue initial est monté en ngOnInit : la session dépend de
+   * l'entrée `program`, qui n'est disponible qu'à ce moment.
+   */
+  override ngOnInit(): void {
+    super.ngOnInit();
     this.resetChat();
   }
 
   openSession(unitId: string): void {
     this.select(unitId);
     this.resetChat();
+    this.verification.set(undefined);
   }
 
   toggleLevels(): void {
@@ -510,6 +519,10 @@ export class AiTutoredWorkspace extends WorkspaceBase {
     return this.teachBack().trim().length >= 60 && covered >= Math.ceil(session.teachBack.keywords.length * 0.7);
   }
 
+  /**
+   * La session n’est validée que si l’agent valide le teach-back : notions
+   * couvertes, exercice réalisé et échange avec le tuteur.
+   */
   finish(session: TutorSession): void {
     if (!this.canFinish(session)) {
       return;
@@ -522,7 +535,39 @@ export class AiTutoredWorkspace extends WorkspaceBase {
       session.id,
       `${dialogue}\n\nTeach-back : ${this.teachBack()}`,
     );
-    this.complete(session.id, session.estimatedMinutes);
+
+    const evidence: StepEvidence = {
+      unitId: session.id,
+      format: 'AI_TUTORED',
+      kind: 'TEXTE',
+      steps: [
+        { label: 'Exercice réalisé', done: this.exercise().trim().length >= 30 },
+        {
+          label: 'Notions du teach-back couvertes',
+          done: this.keywordCount() === session.teachBack.keywords.length,
+          detail: this.teachBack(),
+        },
+        { label: 'Échanges avec le tuteur', done: this.messages().length > 1 },
+      ],
+      criteria: session.teachBack.keywords.map((keyword) => ({
+        label: keyword,
+        done: this.hasKeyword(keyword),
+        detail: this.teachBack(),
+      })),
+      narrative: this.teachBack(),
+      durationMinutes: this.minutesOn(session.id),
+      expectedMinutes: session.estimatedMinutes,
+    };
+
+    const verification = this.verifyStep({
+      unitId: session.id,
+      unitTitle: session.topic,
+      format: 'AI_TUTORED',
+      notions: [session.objective, ...session.teachBack.keywords],
+      evidence,
+    });
+
+    this.completeValidated(session.id, session.estimatedMinutes, verification);
   }
 
   private resetChat(): void {

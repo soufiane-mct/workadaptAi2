@@ -1,9 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
-import { Lab, PracticalProgram } from '../../core/models';
+import { Lab, PracticalProgram, StepEvidence } from '../../core/models';
+import { StepVerdict } from './step-verdict';
 import { WorkspaceBase } from './workspace-base';
 
 @Component({
   selector: 'wa-practical-workspace',
+  imports: [StepVerdict],
   template: `
     <div class="ws-body">
       <aside class="ws-panel">
@@ -142,6 +144,37 @@ import { WorkspaceBase } from './workspace-base';
               }
             </div>
 
+            <h2 style="margin-top: 16px">Ce que vous avez observé</h2>
+            <p class="ws-panel__sub">
+              Une case cochée ne prouve rien : l’agent lit vos observations et les compare aux
+              critères. Sans constat, l’étape vous est renvoyée.
+            </p>
+            @for (criterion of current.successCriteria; track criterion; let index = $index) {
+              <label class="observation">
+                <span>{{ criterion }}</span>
+                <textarea
+                  class="wa-textarea"
+                  rows="2"
+                  [disabled]="!editable() || isDone(current.id)"
+                  [value]="observation(current.id, index)"
+                  (input)="setObservation(current.id, index, $any($event.target).value)"
+                  placeholder="Constat observé : commande, sortie, résultat vérifié…"
+                ></textarea>
+              </label>
+            }
+
+            <label class="observation observation--restitution">
+              <span>Restitution de votre travail</span>
+              <textarea
+                class="wa-textarea"
+                rows="4"
+                [disabled]="!editable() || isDone(current.id)"
+                [value]="restitution(current.id)"
+                (input)="setRestitution(current.id, $any($event.target).value)"
+                placeholder="Décrivez ce que vous avez réellement fait : commandes exécutées, résultat obtenu, ce qui a changé, ce qui reste à faire."
+              ></textarea>
+            </label>
+
             <div class="ws-actions">
               <button
                 class="btn btn--primary"
@@ -150,14 +183,16 @@ import { WorkspaceBase } from './workspace-base';
                 (click)="validate(current)"
               >
                 <span class="material-symbols-outlined">
-                  {{ current.validationMode === 'HUMAN' ? 'send' : 'task_alt' }}
+                  {{ current.validationMode === 'HUMAN' ? 'send' : 'fact_check' }}
                 </span>
-                {{ isDone(current.id) ? 'Lab validé' : current.validationMode === 'HUMAN' ? 'Soumettre au superviseur' : 'Valider le lab' }}
+                {{ isDone(current.id) ? 'Lab validé' : current.validationMode === 'HUMAN' ? 'Soumettre au superviseur' : 'Faire vérifier par l’agent' }}
               </button>
               <span class="wa-small wa-muted">
                 {{ isDone(current.id) ? 'Travail vérifié et enregistré' : progressLabel(current) }}
               </span>
             </div>
+
+            <wa-step-verdict [verification]="verification()" />
           </section>
 
           <section class="ws-panel final">
@@ -182,6 +217,26 @@ import { WorkspaceBase } from './workspace-base';
         flex: none;
         border-radius: 50%;
         background: var(--wa-ink-faint);
+      }
+      .observation {
+        display: block;
+        margin-top: 10px;
+      }
+      .observation > span {
+        display: block;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--wa-ink-soft);
+        margin-bottom: 4px;
+      }
+      .observation textarea {
+        width: 100%;
+        resize: vertical;
+      }
+      .observation--restitution {
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px dashed var(--wa-border);
       }
       .mode-dot[data-mode='AUTO'] {
         background: #0e9f9a;
@@ -331,6 +386,8 @@ export class PracticalWorkspace extends WorkspaceBase {
   readonly attempts = signal<Record<number, number>>({});
   readonly checked = signal<number[]>([]);
   readonly criteriaChecked = signal<number[]>([]);
+  readonly observations = signal<Record<string, string>>({});
+  readonly restitutions = signal<Record<string, string>>({});
   readonly hintIndex = signal(-1);
   readonly consoleLines = signal<{ kind: 'in' | 'ok' | 'err'; text: string }[]>([]);
 
@@ -346,6 +403,7 @@ export class PracticalWorkspace extends WorkspaceBase {
     this.criteriaChecked.set([]);
     this.hintIndex.set(-1);
     this.consoleLines.set([]);
+    this.verification.set(undefined);
   }
 
   runCommand(index: number, command: string): void {
@@ -387,6 +445,22 @@ export class PracticalWorkspace extends WorkspaceBase {
     );
   }
 
+  observation(labId: string, index: number): string {
+    return this.observations()[`${labId}:${index}`] ?? '';
+  }
+
+  setObservation(labId: string, index: number, value: string): void {
+    this.observations.update((map) => ({ ...map, [`${labId}:${index}`]: value }));
+  }
+
+  restitution(labId: string): string {
+    return this.restitutions()[labId] ?? '';
+  }
+
+  setRestitution(labId: string, value: string): void {
+    this.restitutions.update((map) => ({ ...map, [labId]: value }));
+  }
+
   revealHint(): void {
     this.hintIndex.update((value) => Math.min(this.lab()!.hints.length - 1, value + 1));
   }
@@ -396,9 +470,9 @@ export class PracticalWorkspace extends WorkspaceBase {
       return false;
     }
     if (lab.validationMode === 'AUTO') {
-      return this.executed().length >= lab.commands.length;
+      return this.executed().length > 0;
     }
-    return this.criteriaChecked().length === lab.successCriteria.length;
+    return this.criteriaChecked().length > 0 || this.checked().length > 0;
   }
 
   isStepChecked(lab: Lab, index: number): boolean {
@@ -415,12 +489,59 @@ export class PracticalWorkspace extends WorkspaceBase {
     return this.criteriaChecked().includes(index);
   }
 
+  /**
+   * Envoie au l'agent tout ce que l'employé a réellement fait sur le lab :
+   * commandes exécutées, sorties observées, étapes, critères et constats.
+   * L'agent statue : l'unité n'est terminée que si la preuve est validée.
+   */
   validate(lab: Lab): void {
     if (!this.canValidate(lab)) {
       return;
     }
-    this.complete(lab.id, lab.estimatedMinutes);
-    this.resetLabState();
+    const executedCommands = lab.commands.filter((_, index) => this.executed().includes(index));
+    const outputs = this.consoleLines()
+      .filter((line) => line.kind === 'ok')
+      .map((line) => line.text);
+    const observations = Object.entries(this.observations())
+      .filter(([key]) => key.startsWith(`${lab.id}:`))
+      .map(([, value]) => value)
+      .filter((value) => value.trim().length > 0);
+    const restitution = this.restitution(lab.id).trim();
+
+    const evidence: StepEvidence = {
+      unitId: lab.id,
+      format: 'PRACTICAL',
+      kind: 'COMMANDES',
+      commands: executedCommands,
+      outputs,
+      steps: lab.steps.map((step, index) => ({
+        label: step,
+        done: this.isStepChecked(lab, index),
+      })),
+      criteria: lab.successCriteria.map((criterion, index) => ({
+        label: criterion,
+        done: this.isCriterionChecked(lab, index),
+        /* Pas de constat automatique : seul ce que l’employé a écrit compte
+         * comme observation. Les sorties de commande sont déjà transmises
+         * séparément comme preuve d’exécution. */
+        detail: this.observation(lab.id, index).trim(),
+      })),
+      narrative: restitution || observations.join('\n'),
+      durationMinutes: this.minutesOn(lab.id),
+      expectedMinutes: lab.estimatedMinutes,
+    };
+
+    const verification = this.verifyStep({
+      unitId: lab.id,
+      unitTitle: lab.title,
+      format: 'PRACTICAL',
+      notions: [lab.brief, ...lab.successCriteria],
+      evidence,
+    });
+
+    if (this.completeValidated(lab.id, lab.estimatedMinutes, verification)) {
+      this.resetLabState();
+    }
   }
 
   private resetLabState(): void {

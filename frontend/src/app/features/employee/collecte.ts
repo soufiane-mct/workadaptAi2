@@ -292,6 +292,7 @@ export class CollectePage {
       CONNECTED_APP: 'hub',
       PAST_TRAINING: 'history_edu',
       TRAINING_COMPLETION: 'school',
+      TRAINING_STEP: 'fact_check',
       EVALUATION_RESULT: 'grading',
       TECH_WATCH: 'radar',
     };

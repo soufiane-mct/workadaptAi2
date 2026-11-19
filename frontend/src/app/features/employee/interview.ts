@@ -11,6 +11,9 @@ interface ScriptStep {
   keywords: string[];
 }
 
+/** État d'un thème de l'entretien. */
+type InterviewStepStatus = 'EN_COURS' | 'RELANCE' | 'VALIDE' | 'PASSEE';
+
 const SCRIPT: ScriptStep[] = [
   {
     id: 'daily',
@@ -164,6 +167,13 @@ const SCRIPT: ScriptStep[] = [
                 <span class="wa-chip wa-chip--neutral">{{ current().theme }}</span>
                 <span class="wa-small wa-muted">{{ current().hint }}</span>
               </div>
+              @if (statusOf(current().id) === 'RELANCE') {
+                <p class="note" style="margin: 0 0 9px">
+                  <span class="material-symbols-outlined">replay</span>
+                  Relance {{ relanceCount(current().id) }} / {{ maxRelances }} : votre réponse doit
+                  être plus concrète (outil utilisé, action réalisée, résultat mesuré).
+                </p>
+              }
               <textarea
                 class="wa-textarea"
                 rows="4"
@@ -175,10 +185,16 @@ const SCRIPT: ScriptStep[] = [
                 <span class="wa-small" [class.wa-muted]="draft().trim().length < 40">
                   {{ draft().trim().length }} caractères — 40 minimum pour être exploitable
                 </span>
-                <button class="btn btn--primary" type="button" [disabled]="draft().trim().length < 40" (click)="send()">
-                  <span class="material-symbols-outlined">send</span>
-                  Répondre
-                </button>
+                <div class="composer__actions">
+                  <button class="btn btn--small" type="button" (click)="skip()">
+                    <span class="material-symbols-outlined">skip_next</span>
+                    Passer cette question
+                  </button>
+                  <button class="btn btn--primary" type="button" [disabled]="draft().trim().length < 40" (click)="send()">
+                    <span class="material-symbols-outlined">send</span>
+                    Répondre
+                  </button>
+                </div>
               </div>
             </div>
           } @else {
@@ -194,15 +210,29 @@ const SCRIPT: ScriptStep[] = [
         <div style="display: flex; flex-direction: column; gap: 18px">
           <section class="panel">
             <h2>Fil de l’entretien</h2>
-            <p class="panel__sub">Chaque thème est exploré une fois.</p>
+            <p class="panel__sub">
+              Chaque thème est exploré une fois. Une relance ne bloque jamais l’entretien : au
+              troisième essai, la réponse est retenue telle quelle et signalée comme déclarative.
+            </p>
             <div class="thread">
               @for (step of script; track step.id; let i = $index) {
-                <div class="thread__item" [class.thread__item--done]="answers()[step.id]" [class.thread__item--active]="i === index() && !finished()">
-                  <span class="thread__num">{{ answers()[step.id] ? '✓' : i + 1 }}</span>
+                <div
+                  class="thread__item"
+                  [class.thread__item--done]="statusOf(step.id) === 'VALIDE'"
+                  [class.thread__item--active]="i === index() && !finished()"
+                  [class.thread__item--skipped]="statusOf(step.id) === 'PASSEE'"
+                >
+                  <span class="thread__num">{{ threadMark(step.id, i) }}</span>
                   <span>{{ step.theme }}</span>
+                  @if (statusOf(step.id) === 'RELANCE') {
+                    <span class="thread__flag">relance</span>
+                  }
                 </div>
               }
             </div>
+            <p class="wa-small wa-muted" style="margin: 10px 0 0">
+              ✓ réponse exploitée · — question passée · reste en cours
+            </p>
           </section>
 
           <section class="panel">
@@ -305,6 +335,12 @@ const SCRIPT: ScriptStep[] = [
         margin-top: 8px;
         flex-wrap: wrap;
       }
+      .composer__actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
       .thread {
         display: flex;
         flex-direction: column;
@@ -326,6 +362,17 @@ const SCRIPT: ScriptStep[] = [
       }
       .thread__item--done {
         color: var(--wa-ink-soft);
+      }
+      .thread__item--skipped {
+        opacity: 0.65;
+      }
+      .thread__flag {
+        margin-left: auto;
+        font-size: 9.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: 700;
+        color: #8a5800;
       }
       .thread__num {
         width: 21px;
@@ -390,17 +437,50 @@ export class InterviewPage {
   readonly script = SCRIPT;
   readonly firstName = computed(() => this.data.profile().firstName);
 
+  /** Nombre maximal de relances avant d'accepter la réponse telle quelle. */
+  readonly maxRelances = 2;
+
   readonly messages = signal<InterviewMessage[]>([this.aiMessage(SCRIPT[0].prompt)]);
   readonly draft = signal('');
   readonly index = signal(0);
   readonly typing = signal(false);
   readonly finished = signal(false);
+  /** Réponses **acceptées** : seules celles-ci alimentent le diagnostic. */
   readonly answers = signal<Record<string, string>>({});
+  /** Statut de chaque thème : en cours, relancé, validé ou passé. */
+  readonly statuses = signal<Record<string, InterviewStepStatus>>({});
+  /** Nombre de relances déjà adressées, par thème. */
+  readonly relances = signal<Record<string, number>>({});
   readonly result = signal<InterviewDiagnosticResult | undefined>(undefined);
 
   readonly current = computed(() => this.script[Math.min(this.index(), this.script.length - 1)]);
 
   readonly answeredCount = computed(() => Object.keys(this.answers()).length);
+  readonly skippedCount = computed(
+    () => Object.values(this.statuses()).filter((status) => status === 'PASSEE').length,
+  );
+
+  statusOf(stepId: string): InterviewStepStatus {
+    return this.statuses()[stepId] ?? 'EN_COURS';
+  }
+
+  relanceCount(stepId: string): number {
+    return this.relances()[stepId] ?? 0;
+  }
+
+  threadMark(stepId: string, index: number): string {
+    const status = this.statusOf(stepId);
+    if (status === 'VALIDE') {
+      return '✓';
+    }
+    if (status === 'PASSEE') {
+      return '—';
+    }
+    if (status === 'RELANCE') {
+      return '!';
+    }
+    return String(index + 1);
+  }
 
   send(): void {
     const text = this.draft().trim();
@@ -408,43 +488,91 @@ export class InterviewPage {
       return;
     }
     const step = this.current();
-    this.answers.update((map) => ({ ...map, [step.id]: text }));
     this.messages.update((list) => [...list, this.userMessage(text)]);
     this.draft.set('');
-
-    const coverage = this.coverage(step, text);
     this.typing.set(true);
 
     window.setTimeout(() => {
       this.typing.set(false);
-      if (coverage < 2) {
+      const coverage = this.coverage(step, text);
+      const relances = this.relanceCount(step.id);
+
+      /* ---------------------------------------------------------- *
+       * Relance : l'étape reste en cours, la réponse n'est PAS
+       * enregistrée. Au bout de maxRelances, la réponse est retenue
+       * telle quelle — l'entretien ne peut jamais rester bloqué.
+       * ---------------------------------------------------------- */
+      if (coverage < 2 && relances < this.maxRelances) {
+        this.relances.update((map) => ({ ...map, [step.id]: relances + 1 }));
+        this.statuses.update((map) => ({ ...map, [step.id]: 'RELANCE' }));
         const relance = this.aiMessage(
           `Votre réponse reste générale. Précisez un exemple concret, les outils utilisés et ce qui a réellement changé (${step.keywords.slice(0, 3).join(', ')}).`,
         );
         this.messages.update((list) => [...list, relance]);
         return;
       }
-      const next = this.index() + 1;
-      if (next >= this.script.length) {
-        this.index.set(this.script.length - 1);
-        this.finished.set(true);
+
+      this.answers.update((map) => ({ ...map, [step.id]: text }));
+      this.statuses.update((map) => ({ ...map, [step.id]: 'VALIDE' }));
+
+      if (coverage < 2) {
         this.messages.update((list) => [
           ...list,
           this.aiMessage(
-            'Merci. Je clos l’entretien et je produis un diagnostic provisoire. Il devra être confirmé par une évaluation pour compter comme preuve.',
+            `Je retiens votre réponse sur « ${step.theme} », mais elle reste déclarative : elle sera confirmée par une évaluation, pas par l’entretien.`,
           ),
         ]);
-        this.buildDiagnostic();
-        return;
       }
-      this.index.set(next);
-      this.messages.update((list) => [...list, this.aiMessage(this.script[next].prompt)]);
+
+      this.advance();
     }, 520);
+  }
+
+  /**
+   * Échappatoire : le thème peut être passé sans réponse. L’entretien se
+   * poursuit, le diagnostic signalera la zone non couverte.
+   */
+  skip(): void {
+    if (this.finished()) {
+      return;
+    }
+    const step = this.current();
+    this.statuses.update((map) => ({ ...map, [step.id]: 'PASSEE' }));
+    this.messages.update((list) => [
+      ...list,
+      this.aiMessage(
+        `D’accord, je passe à la suite : « ${step.theme} » restera sans réponse exploitable et sera signalée comme zone à confirmer.`,
+      ),
+    ]);
+    this.draft.set('');
+    this.advance();
+  }
+
+  /** Passe au thème suivant, ou clôture l’entretien. */
+  private advance(): void {
+    const next = this.index() + 1;
+    if (next >= this.script.length) {
+      this.index.set(this.script.length - 1);
+      this.finished.set(true);
+      this.messages.update((list) => [
+        ...list,
+        this.aiMessage(
+          'Merci. Je clos l’entretien et je produis un diagnostic provisoire. Il devra être confirmé par une évaluation pour compter comme preuve.',
+        ),
+      ]);
+      this.buildDiagnostic();
+      return;
+    }
+    this.index.set(next);
+    this.statuses.update((map) => ({ ...map, [this.script[next].id]: 'EN_COURS' }));
+    this.messages.update((list) => [...list, this.aiMessage(this.script[next].prompt)]);
   }
 
   restart(): void {
     this.messages.set([this.aiMessage(SCRIPT[0].prompt)]);
     this.answers.set({});
+    this.statuses.set({});
+    this.relances.set({});
     this.draft.set('');
     this.index.set(0);
     this.finished.set(false);
@@ -466,6 +594,10 @@ export class InterviewPage {
     const strengths: string[] = [];
     const watchpoints: string[] = [];
     for (const step of this.script) {
+      if (this.statusOf(step.id) === 'PASSEE') {
+        watchpoints.push(`${step.theme} : question passée sans réponse — zone à confirmer.`);
+        continue;
+      }
       const hits = this.coverage(step, values[step.id] ?? '');
       if (hits >= 3) {
         strengths.push(`${step.theme} : pratique décrite avec des faits vérifiables.`);

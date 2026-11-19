@@ -148,6 +148,7 @@ type NotificationFilter = 'ALL' | 'UNREAD' | 'TRAINING' | 'GAP' | 'EVALUATION';
       }
       .notif__icon[data-type='EVALUATION_FAILED'],
       .notif__icon[data-type='TRAINING_REJECTED'],
+      .notif__icon[data-type='TRAINING_STEP_REJECTED'],
       .notif__icon[data-type='COLLECTION_FAILED'] {
         background: var(--wa-danger-soft);
         color: #a21c12;
@@ -279,6 +280,7 @@ export class NotificationsPage {
       CHANGES_REQUESTED: 'edit_note',
       TRAINING_STARTED: 'play_circle',
       TRAINING_MILESTONE: 'flag',
+      TRAINING_STEP_REJECTED: 'fact_check',
       TRAINING_COMPLETED: 'school',
       EVALUATION_READY: 'assignment',
       EVALUATION_PASSED: 'check_circle',
@@ -301,6 +303,7 @@ export class NotificationsPage {
       CHANGES_REQUESTED: 'Modification demandée',
       TRAINING_STARTED: 'Formation démarrée',
       TRAINING_MILESTONE: 'Jalon',
+      TRAINING_STEP_REJECTED: 'Étape renvoyée',
       TRAINING_COMPLETED: 'Formation terminée',
       EVALUATION_READY: 'Évaluation prête',
       EVALUATION_PASSED: 'Évaluation réussie',

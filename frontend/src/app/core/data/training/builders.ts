@@ -404,8 +404,8 @@ export function buildSimulationProgram(ctx: BuildContext, pack: KnowledgePack): 
       })),
     })),
     debriefQuestions: [
-      'Quel signal avez-vous exploité en premier, et pourquoi ?',
-      'Quelle décision auriez-vous pris différemment avec plus d’informations ?',
+      `Quel signal avez-vous exploité en premier (${scenario.signals.join(', ')}) ? Pourquoi ?`,
+      'Quelle décision auriez-vous prise différemment avec plus d’informations ?',
       'Quelle mesure préventive auriez-vous mise en place ?',
     ],
     estimatedMinutes: 80,

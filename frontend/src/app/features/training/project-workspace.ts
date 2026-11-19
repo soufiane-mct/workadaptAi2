@@ -1,9 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
-import { Milestone, ProjectProgram } from '../../core/models';
+import { Milestone, ProjectProgram, StepEvidence } from '../../core/models';
+import { StepVerdict } from './step-verdict';
 import { WorkspaceBase } from './workspace-base';
 
 @Component({
   selector: 'wa-project-workspace',
+  imports: [StepVerdict],
   template: `
     <div class="project">
       <section class="board">
@@ -99,11 +101,13 @@ import { WorkspaceBase } from './workspace-base';
                 [disabled]="!canDeliver(current)"
                 (click)="deliver(current)"
               >
-                <span class="material-symbols-outlined">upload</span>
-                {{ isDone(current.id) ? 'Jalon accepté' : 'Soumettre le livrable' }}
+                <span class="material-symbols-outlined">fact_check</span>
+                {{ isDone(current.id) ? 'Jalon accepté' : 'Faire vérifier par l’agent' }}
               </button>
               <span class="wa-small wa-muted">{{ reviewLabel(current) }}</span>
             </div>
+
+            <wa-step-verdict [verification]="verification()" />
 
             @if (isDone(current.id)) {
               <div class="review">
@@ -352,6 +356,7 @@ export class ProjectWorkspace extends WorkspaceBase {
 
   selectMilestone(unitId: string): void {
     this.select(unitId);
+    this.verification.set(undefined);
   }
 
   taskDone(milestoneId: string): number[] {
@@ -386,13 +391,46 @@ export class ProjectWorkspace extends WorkspaceBase {
     return allTasks && this.proof(milestone.id).trim().length >= 25;
   }
 
+  /**
+   * Le jalon n’est accepté que si l’agent valide le livrable déposé : tâches
+   * réalisées, critères couverts et preuve vérifiable.
+   */
   deliver(milestone: Milestone): void {
     if (!this.canDeliver(milestone)) {
       return;
     }
-    this.delivered.update((list) => [...list, milestone.id]);
-    this.data.saveTrainingNotes(this.request().id, milestone.id, this.proof(milestone.id));
-    this.complete(milestone.id, Math.round(milestone.estimatedMinutes * 0.9));
+    const proof = this.proof(milestone.id);
+    this.data.saveTrainingNotes(this.request().id, milestone.id, proof);
+
+    const evidence: StepEvidence = {
+      unitId: milestone.id,
+      format: 'PROJECT',
+      kind: 'TEXTE',
+      steps: milestone.tasks.map((task, index) => ({
+        label: task,
+        done: this.taskDone(milestone.id).includes(index),
+      })),
+      criteria: milestone.criteria.map((criterion) => ({
+        label: criterion,
+        done: this.taskDone(milestone.id).length === milestone.tasks.length,
+        detail: proof,
+      })),
+      narrative: proof,
+      durationMinutes: this.minutesOn(milestone.id),
+      expectedMinutes: milestone.estimatedMinutes,
+    };
+
+    const verification = this.verifyStep({
+      unitId: milestone.id,
+      unitTitle: milestone.title,
+      format: 'PROJECT',
+      notions: [milestone.brief, milestone.deliverable, ...milestone.criteria],
+      evidence,
+    });
+
+    if (this.completeValidated(milestone.id, Math.round(milestone.estimatedMinutes * 0.9), verification)) {
+      this.delivered.update((list) => [...list, milestone.id]);
+    }
   }
 
   reviewLabel(milestone: Milestone): string {

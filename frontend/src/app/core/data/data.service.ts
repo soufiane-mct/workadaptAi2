@@ -25,6 +25,8 @@ import {
   SkillGap,
   SkillHistoryEntry,
   SkillTrendSeries,
+  StepEvidence,
+  StepVerification,
   TeamMember,
   TechSignal,
   TRAINING_FORMATS,
@@ -48,6 +50,7 @@ import { EvaluationService } from './evaluation.service';
 import { GapService } from './gap.service';
 import { NotificationService } from './notification.service';
 import { ProfileService } from './profile.service';
+import { StepVerificationService } from './step-verification.service';
 import { TechWatchService } from './tech-watch.service';
 import { TrainingService } from './training.service';
 import { WorkflowStateService } from './workflow-state.service';
@@ -83,6 +86,7 @@ export class DataService {
   readonly notificationService = inject(NotificationService);
   readonly auditService = inject(AuditService);
   readonly workflow = inject(WorkflowStateService);
+  readonly stepVerificationService = inject(StepVerificationService);
 
   /* ---------------------------------------------------------------- *
    * Référentiels
@@ -305,8 +309,32 @@ export class DataService {
     this.trainingService.start(requestId);
   }
 
-  completeTrainingUnit(requestId: string, unitId: string, minutes?: number): void {
-    this.trainingService.completeUnit(requestId, unitId, { minutes });
+  completeTrainingUnit(
+    requestId: string,
+    unitId: string,
+    minutes?: number,
+  ): { ok: boolean; message: string } {
+    return this.trainingService.completeUnit(requestId, unitId, { minutes });
+  }
+
+  /** Transmet la preuve d'une étape à l'agent d'analyse et renvoie son verdict. */
+  verifyTrainingStep(input: {
+    requestId: string;
+    unitId: string;
+    unitTitle: string;
+    format: TrainingFormat;
+    notions: string[];
+    evidence: StepEvidence;
+  }): StepVerification {
+    return this.stepVerificationService.verify(input);
+  }
+
+  stepVerifications(requestId: string): StepVerification[] {
+    return this.stepVerificationService.forRequest(requestId);
+  }
+
+  lastStepVerification(requestId: string, unitId: string): StepVerification | undefined {
+    return this.stepVerificationService.lastFor(requestId, unitId);
   }
 
   saveTrainingNotes(requestId: string, unitId: string, notes: string): void {

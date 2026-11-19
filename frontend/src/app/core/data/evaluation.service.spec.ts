@@ -7,6 +7,7 @@ import {
 } from '../models';
 import { EvaluationService } from './evaluation.service';
 import { GapService } from './gap.service';
+import { StepVerificationService } from './step-verification.service';
 import { TrainingService } from './training.service';
 
 /**
@@ -18,11 +19,13 @@ import { TrainingService } from './training.service';
 describe('EvaluationService — scoring', () => {
   let training: TrainingService;
   let evaluation: EvaluationService;
+  let verification: StepVerificationService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
     training = TestBed.inject(TrainingService);
     evaluation = TestBed.inject(EvaluationService);
+    verification = TestBed.inject(StepVerificationService);
   });
 
   /** Parcours complet, conditions de fin réellement remplies. */
@@ -40,7 +43,39 @@ describe('EvaluationService — scoring', () => {
     const units = progress!.units;
     const minutes = Math.ceil((program!.estimatedHours * 60) / units.length) + 15;
     for (const unit of units) {
-      training.completeUnit(request.id, unit.unitId, { minutes, checkpointPassed: true });
+      /* Chaque unité passe par l'agent d'analyse des preuves : une unité
+       * sans verdict favorable ne peut pas être terminée. */
+      const verdict = verification.verify({
+        requestId: request.id,
+        unitId: unit.unitId,
+        unitTitle: unit.unitId,
+        format: 'PRACTICAL',
+        notions: [],
+        evidence: {
+          unitId: unit.unitId,
+          format: 'PRACTICAL',
+          kind: 'TEXTE',
+          steps: [{ label: 'Consigne du laboratoire exécutée', done: true }],
+          criteria: [
+            {
+              label: 'Critère de réussite du laboratoire',
+              done: true,
+              detail:
+                'Sortie de commande observée dans l’environnement isolé, résultat contrôlé et consigné.',
+            },
+          ],
+          narrative:
+            'Commandes réellement exécutées sur l’environnement isolé du laboratoire, sorties observées, critère de réussite contrôlé et procédure de reprise documentée.',
+          durationMinutes: 30,
+          expectedMinutes: 30,
+        },
+      });
+      expect(verdict.verdict).toBe('VALIDE');
+      const outcome = training.completeUnit(request.id, unit.unitId, {
+        minutes,
+        checkpointPassed: true,
+      });
+      expect(outcome.ok).toBe(true);
     }
     training.submitCapstone(
       request.id,

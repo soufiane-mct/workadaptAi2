@@ -227,6 +227,7 @@ export type CollectionSource =
   | 'CONNECTED_APP'
   | 'PAST_TRAINING'
   | 'TRAINING_COMPLETION'
+  | 'TRAINING_STEP'
   | 'EVALUATION_RESULT'
   | 'TECH_WATCH';
 
@@ -237,6 +238,7 @@ export const COLLECTION_SOURCE_LABELS: Record<CollectionSource, string> = {
   CONNECTED_APP: 'Application connectée',
   PAST_TRAINING: 'Formation antérieure',
   TRAINING_COMPLETION: 'Formation terminée',
+  TRAINING_STEP: 'Vérification d’étape',
   EVALUATION_RESULT: 'Résultat d’évaluation',
   TECH_WATCH: 'Veille technologique',
 };
@@ -246,6 +248,7 @@ export type CollectionEventType =
   | 'PROJECT_ACTIVITY'
   | 'CERTIFICATION'
   | 'TRAINING_DONE'
+  | 'STEP_VERIFICATION'
   | 'ASSESSMENT_DONE'
   | 'TECH_SIGNAL'
   | 'PROFILE_UPDATE';
@@ -575,6 +578,73 @@ export interface TrainingProgress {
   capstoneProof?: string;
   minutesSpent: number;
   masterGatePassed: boolean;
+}
+
+/* ------------------------------------------------------------------ *
+ * Vérification IA des preuves d'étape
+ *
+ * Chaque étape de formation produit une preuve (commandes réellement
+ * exécutées, critères observés, décisions, restitution écrite). Ces
+ * données sont transmises à l'agent d'analyse des preuves, qui statue :
+ * une case cochée seule ne valide jamais une étape.
+ * ------------------------------------------------------------------ */
+
+/** Verdict de l'agent sur une preuve d'étape. */
+export type StepVerdict = 'VALIDE' | 'INCOMPLET' | 'REJETE';
+
+/** Un élément vérifiable : ce qui est fait, et la trace qui le prouve. */
+export interface StepEvidenceItem {
+  label: string;
+  done: boolean;
+  /** Observation, sortie de commande ou justification associée. */
+  detail?: string;
+}
+
+/** Preuve transmise à l'agent pour une unité de formation. */
+export interface StepEvidence {
+  unitId: string;
+  format: TrainingFormat;
+  kind: 'COMMANDES' | 'CRITERES' | 'TEXTE' | 'SCENARIO' | 'REVUE' | 'QUIZ';
+  /** Commandes réellement exécutées par l'employé. */
+  commands?: string[];
+  /** Sorties observées pour chaque commande exécutée. */
+  outputs?: string[];
+  /** Critères de réussite et leur observation. */
+  criteria?: StepEvidenceItem[];
+  /** Étapes imposées et leur état. */
+  steps?: StepEvidenceItem[];
+  /** Restitution écrite, teach-back, compte rendu ou livrable. */
+  narrative?: string;
+  /** Décisions prises (simulation, cas), avec la conséquence observée. */
+  decisions?: StepEvidenceItem[];
+  /** Temps réellement passé sur l'unité, en minutes. */
+  durationMinutes: number;
+  /** Durée attendue par le curriculum, en minutes. */
+  expectedMinutes: number;
+}
+
+/** Résultat de l'analyse d'une preuve d'étape. */
+export interface StepVerification {
+  id: string;
+  requestId: string;
+  unitId: string;
+  unitTitle: string;
+  format: TrainingFormat;
+  at: string;
+  verdict: StepVerdict;
+  /** Note de la preuve, sur 100. */
+  score: number;
+  /** Confiance de l'agent dans son verdict, sur 1. */
+  confidence: number;
+  /** Ce que l'agent a réellement contrôlé. */
+  checked: string[];
+  /** Ce qui manque ou ne tient pas. */
+  gaps: string[];
+  /** Consigne actionnable pour l'employé. */
+  feedback: string;
+  /** Résumé exact des données transmises à l'agent (traçabilité). */
+  reviewed: string[];
+  agent: string;
 }
 
 /* ------------------------------------------------------------------ *
@@ -958,6 +1028,7 @@ export type AppNotificationType =
   | 'CHANGES_REQUESTED'
   | 'TRAINING_STARTED'
   | 'TRAINING_MILESTONE'
+  | 'TRAINING_STEP_REJECTED'
   | 'TRAINING_COMPLETED'
   | 'EVALUATION_READY'
   | 'EVALUATION_PASSED'

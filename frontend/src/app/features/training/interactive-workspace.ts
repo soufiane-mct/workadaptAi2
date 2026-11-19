@@ -1,9 +1,16 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
-import { DrillSet, ExamQuestion, InteractiveProgram } from '../../core/models';
+import {
+  DrillSet,
+  ExamQuestion,
+  InteractiveProgram,
+  StepEvidence,
+} from '../../core/models';
+import { StepVerdict } from './step-verdict';
 import { WorkspaceBase } from './workspace-base';
 
 @Component({
   selector: 'wa-interactive-workspace',
+  imports: [StepVerdict],
   template: `
     <div class="ws-body">
       <aside class="ws-panel">
@@ -132,11 +139,12 @@ import { WorkspaceBase } from './workspace-base';
                   [disabled]="!editable() || isDone(current.id) || mastery() < current.masteryThreshold"
                   (click)="finish(current.id)"
                 >
-                  <span class="material-symbols-outlined">bolt</span>
-                  {{ isDone(current.id) ? 'Deck validé' : 'Valider le deck' }}
+                  <span class="material-symbols-outlined">fact_check</span>
+                  {{ isDone(current.id) ? 'Deck validé' : 'Faire vérifier par l’agent' }}
                 </button>
                 <span class="wa-small wa-muted">{{ answered() }} / {{ current.drills.length }} drills vérifiés</span>
               </div>
+              <wa-step-verdict [verification]="verification()" />
             </section>
           }
 
@@ -370,6 +378,7 @@ export class InteractiveWorkspace extends WorkspaceBase {
     this.flipped.set(false);
     this.pickedMap.set({});
     this.revealed.set({});
+    this.verification.set(undefined);
   }
 
   moveCard(delta: number): void {
@@ -414,8 +423,46 @@ export class InteractiveWorkspace extends WorkspaceBase {
     return String.fromCharCode(65 + index);
   }
 
+  /**
+   * Le deck n’est terminé que si l’agent valide la trace : réponses, maîtrise
+   * réelle et synthèse écrite de ce qui a été compris.
+   */
   finish(deckId: string): void {
-    this.complete(deckId, this.deck()?.estimatedMinutes);
+    const deck = this.deck();
+    if (!deck) {
+      return;
+    }
+    const drills = deck.drills;
+    const correct = drills.filter((question) => this.isCorrect(question)).length;
+    const evidence: StepEvidence = {
+      unitId: deckId,
+      format: 'INTERACTIVE',
+      kind: 'QUIZ',
+      steps: deck.cards.map((card) => ({
+        label: `Carte : ${card.front}`,
+        done: this.flipped() || this.cardIndex() > 0,
+      })),
+      criteria: drills.map((question) => ({
+        label: question.prompt,
+        done: this.revealed()[question.id] === true,
+        detail: `Réponse : ${this.picked(question.id)
+          .map((index) => question.options[index] ?? '')
+          .join(' | ')} — corrigé : ${this.isCorrect(question) ? 'oui' : 'non'}`,
+      })),
+      narrative: `Drills vérifiés : ${this.answered()}/${drills.length}. Maîtrise calculée : ${this.mastery()} % (seuil ${deck.masteryThreshold} %). Notions du deck : ${deck.notion}.`,
+      durationMinutes: this.minutesOn(deckId),
+      expectedMinutes: deck.estimatedMinutes,
+    };
+
+    const verification = this.verifyStep({
+      unitId: deckId,
+      unitTitle: deck.title,
+      format: 'INTERACTIVE',
+      notions: [deck.notion, deck.title],
+      evidence,
+    });
+
+    this.completeValidated(deckId, deck.estimatedMinutes, verification);
   }
 
   deckSet(): DrillSet | undefined {

@@ -1,9 +1,16 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
-import { SimulationDecision, SimulationProgram, SimulationScenario } from '../../core/models';
+import {
+  SimulationDecision,
+  SimulationProgram,
+  SimulationScenario,
+  StepEvidence,
+} from '../../core/models';
+import { StepVerdict } from './step-verdict';
 import { WorkspaceBase } from './workspace-base';
 
 @Component({
   selector: 'wa-simulation-workspace',
+  imports: [StepVerdict],
   template: `
     <div class="sim">
       <aside class="ws-panel sim__side">
@@ -127,11 +134,13 @@ import { WorkspaceBase } from './workspace-base';
                 [disabled]="!canClose(current)"
                 (click)="close(current)"
               >
-                <span class="material-symbols-outlined">assignment_turned_in</span>
-                {{ isDone(current.id) ? 'Scénario clôturé' : 'Clôturer le scénario' }}
+                <span class="material-symbols-outlined">fact_check</span>
+                {{ isDone(current.id) ? 'Scénario clôturé' : 'Faire vérifier par l’agent' }}
               </button>
               <span class="wa-small wa-muted">{{ answeredCount(current) }} / {{ current.decisions.length }} décisions</span>
             </div>
+
+            <wa-step-verdict [verification]="verification()" />
           </section>
 
           <section class="ws-panel report">
@@ -414,6 +423,7 @@ export class SimulationWorkspace extends WorkspaceBase {
 
   openScenario(unitId: string): void {
     this.select(unitId);
+    this.verification.set(undefined);
   }
 
   answerFor(decision: SimulationDecision) {
@@ -464,6 +474,10 @@ export class SimulationWorkspace extends WorkspaceBase {
     return allDecisions && debriefComplete;
   }
 
+  /**
+   * Le scénario n’est clôturé que si l’agent valide la trace : décisions
+   * prises, conséquences observées et débriefing rédigé.
+   */
   close(scenario: SimulationScenario): void {
     if (!this.canClose(scenario)) {
       return;
@@ -472,7 +486,40 @@ export class SimulationWorkspace extends WorkspaceBase {
       .map((question, index) => `${question} ${this.debrief(scenario.id)[index] ?? ''}`)
       .join('\n');
     this.data.saveTrainingNotes(this.request().id, scenario.id, joined);
-    this.complete(scenario.id, scenario.estimatedMinutes);
+
+    const evidence: StepEvidence = {
+      unitId: scenario.id,
+      format: 'SIMULATION',
+      kind: 'SCENARIO',
+      /* Le journal d'incident est le contexte du scénario, pas une action
+       * de l'employé : seules ses décisions et son débriefing comptent. */
+      decisions: scenario.decisions.map((decision) => {
+        const answer = this.answers()[decision.id];
+        return {
+          label: decision.prompt,
+          done: !!answer,
+          detail: answer ? `${answer.label} — ${answer.outcome} (${answer.feedback})` : '',
+        };
+      }),
+      criteria: scenario.signals.map((signal) => ({
+        label: signal,
+        done: false,
+        detail: joined,
+      })),
+      narrative: joined,
+      durationMinutes: this.minutesOn(scenario.id),
+      expectedMinutes: scenario.estimatedMinutes,
+    };
+
+    const verification = this.verifyStep({
+      unitId: scenario.id,
+      unitTitle: scenario.title,
+      format: 'SIMULATION',
+      notions: [scenario.situation, ...scenario.signals],
+      evidence,
+    });
+
+    this.completeValidated(scenario.id, scenario.estimatedMinutes, verification);
   }
 
   letter(index: number): string {

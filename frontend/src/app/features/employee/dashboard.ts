@@ -111,6 +111,26 @@ import { FORMAT_LABELS } from '../../core/models';
       </section>
     }
 
+    @if (evaluable(); as evaluation) {
+      <section class="wa-card evaluable">
+        <div class="active__head">
+          <div>
+            <span class="wa-chip wa-chip--warning">Évaluation disponible</span>
+            <h2>{{ evaluationProgramTitle() }}</h2>
+            <p class="wa-muted wa-small">
+              Votre formation est terminée. Il reste la preuve de maîtrise : choisissez une
+              méthode parmi les cinq disponibles. En cas d’échec, une remédiation est créée
+              automatiquement.
+            </p>
+          </div>
+          <a class="primary" [routerLink]="['/app/evaluations', evaluation.id]">
+            Passer l’évaluation
+            <span class="material-symbols-outlined">arrow_forward</span>
+          </a>
+        </div>
+      </section>
+    }
+
     <section class="wa-card">
       <h2 class="wa-card__title">Dernières notifications</h2>
       @for (notification of notifications().slice(0, 3); track notification.id) {
@@ -271,6 +291,9 @@ import { FORMAT_LABELS } from '../../core/models';
         margin: 8px 0 4px;
         font-size: 19px;
       }
+      .evaluable {
+        border-left: 4px solid var(--wa-warning);
+      }
       .active__track {
         margin-top: 14px;
         height: 9px;
@@ -323,6 +346,22 @@ export class EmployeeDashboard {
 
   readonly firstName = computed(() => this.data.profile().firstName);
   readonly active = computed(() => this.inProgress()[0]);
+  /**
+   * Parcours terminé dont l’évaluation n’est pas encore passée : c’est
+   * l’unique porte d’entrée de l’évaluation après la formation.
+   */
+  readonly evaluable = computed(() =>
+    this.data.trainingService
+      .completed()
+      .find((request) => !this.data.evaluationFor(request.id)),
+  );
+  readonly evaluationProgramTitle = computed(() => {
+    const request = this.evaluable();
+    if (!request) {
+      return '';
+    }
+    return this.data.programFor(request.id)?.title ?? request.subject;
+  });
   readonly programTitle = computed(
     () => (this.active() ? this.data.programFor(this.active()!.id)?.title ?? '' : ''),
   );
