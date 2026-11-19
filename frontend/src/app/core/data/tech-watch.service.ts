@@ -3,6 +3,7 @@ import { EvidenceRef, TechSignal } from '../models';
 import { AuditService } from './audit.service';
 import { GapService } from './gap.service';
 import { NotificationService } from './notification.service';
+import { ProfileService } from './profile.service';
 import { INITIAL_TECH_SIGNALS } from './mock-data';
 
 /**
@@ -16,6 +17,7 @@ export class TechWatchService {
   private readonly gapService = inject(GapService);
   private readonly notifications = inject(NotificationService);
   private readonly audit = inject(AuditService);
+  private readonly profileService = inject(ProfileService);
 
   private readonly _signals = signal<TechSignal[]>(INITIAL_TECH_SIGNALS);
   readonly signals = this._signals.asReadonly();
@@ -74,7 +76,7 @@ export class TechWatchService {
       message: `${signal.technology} a été transformé en écart à traiter. Une évaluation confirmera le niveau réel.`,
       audience: ['EMPLOYEE', 'MANAGER'],
       link: `/app/ecarts/gap-${signal.skillCode}`,
-      employeeId: 'emp-0001',
+      employeeId: this.profileService.employeeId(),
     });
 
     this.audit.log({

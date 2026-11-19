@@ -20,7 +20,6 @@ import {
 } from '../models';
 import { AuditService } from './audit.service';
 import { buildEvaluationDocument, programTopics } from './evaluation/builders';
-import { NotificationService } from './notification.service';
 import { TrainingService } from './training.service';
 import { WorkflowStateService } from './workflow-state.service';
 
@@ -69,7 +68,6 @@ function round(value: number): number {
 @Injectable({ providedIn: 'root' })
 export class EvaluationService {
   private readonly training = inject(TrainingService);
-  private readonly notifications = inject(NotificationService);
   private readonly audit = inject(AuditService);
   private readonly workflow = inject(WorkflowStateService);
 

@@ -1,10 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   AgentExchange,
   AgentHealth,
-  AgentStatus,
-  WorkflowRun,
   WorkflowStatus,
 } from '../../core/models';
 import { DataService } from '../../core/data/data.service';

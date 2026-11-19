@@ -45,7 +45,7 @@ export function estimatedDays(ctx: BuildContext, hours: number): number {
   return Math.max(3, Math.min(20, Math.ceil(hours / perDay)));
 }
 
-function dayLabel(index: number, ctx: BuildContext): string {
+function dayLabel(index: number): string {
   const names = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const week = Math.floor(index / 6) + 1;
   const name = names[index % 6];
@@ -57,7 +57,7 @@ export function buildStudyPlan(ctx: BuildContext, hours: number, focuses: string
   const perDay = Math.max(45, Math.round((hours * 60) / days));
   return Array.from({ length: days }, (_, index) => ({
     id: `ses-${ctx.requestId}-${index + 1}`,
-    day: dayLabel(index, ctx),
+    day: dayLabel(index),
     label: `Session ${index + 1}`,
     focus: focuses[index % Math.max(1, focuses.length)] ?? `Consolidation — ${ctx.skillLabel}`,
     minutes: perDay,
@@ -65,7 +65,6 @@ export function buildStudyPlan(ctx: BuildContext, hours: number, focuses: string
 }
 
 export function completionCriteria(
-  ctx: BuildContext,
   hours: number,
   units: number,
   evidenceLabel: string,

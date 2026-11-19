@@ -31,6 +31,9 @@ export class ProfileService {
     return `${profile.firstName} ${profile.lastName}`.trim();
   });
 
+  /** Identifiant métier de l'employé : cible des notifications et des preuves. */
+  readonly employeeId = computed(() => this._profile().employeeId);
+
   readonly profileComplete = computed(() => {
     const profile = this._profile();
     return !!profile.domain && profile.tools.length > 0 && profile.consent.collect;

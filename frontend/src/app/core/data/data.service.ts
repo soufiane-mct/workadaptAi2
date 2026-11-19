@@ -28,7 +28,6 @@ import {
   StepEvidence,
   StepVerification,
   TeamMember,
-  TechSignal,
   TRAINING_FORMATS,
   TRAINING_REQUEST_STATUS_LABELS,
   TrainingFormat,
@@ -174,7 +173,7 @@ export class DataService {
 
   readonly unreadNotifications = computed(() => {
     const role = this.auth.role();
-    return role ? this.notificationService.unreadFor(role) : 0;
+    return role ? this.notificationService.unreadFor(role, this.profileService.employeeId()) : 0;
   });
 
   /* ---------------------------------------------------------------- *
@@ -227,7 +226,7 @@ export class DataService {
 
   notificationsForCurrentRole(): AppNotification[] {
     const role = this.auth.role();
-    return role ? this.notificationService.forRole(role) : [];
+    return role ? this.notificationService.forRole(role, this.profileService.employeeId()) : [];
   }
 
   sourcesByStatus(status: DataSource['status']): DataSource[] {
@@ -325,6 +324,7 @@ export class DataService {
     format: TrainingFormat;
     notions: string[];
     evidence: StepEvidence;
+    employeeId?: string;
   }): StepVerification {
     return this.stepVerificationService.verify(input);
   }
@@ -396,7 +396,7 @@ export class DataService {
   markAllNotificationsRead(): void {
     const role = this.auth.role();
     if (role) {
-      this.notificationService.markAllRead(role);
+      this.notificationService.markAllRead(role, this.profileService.employeeId());
     }
   }
 

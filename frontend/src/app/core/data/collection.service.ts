@@ -238,7 +238,7 @@ export class CollectionService {
             : `${gap.skillLabel} est à ${gap.currentLevel}/100 pour un attendu de ${gap.targetLevel}. Un parcours peut être généré.`,
         audience: ['EMPLOYEE', 'MANAGER'],
         link: `/app/ecarts/${gap.id}`,
-        employeeId: 'emp-0001',
+        employeeId: this.profileService.employeeId(),
       });
     }
 

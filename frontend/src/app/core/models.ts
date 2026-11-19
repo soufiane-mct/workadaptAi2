@@ -32,6 +32,8 @@ export interface User {
   jobTitle: string;
   department: string;
   initials: string;
+  /** Identifiant métier de l'employé : cible des notifications et des preuves. */
+  employeeId?: string;
 }
 
 /* ------------------------------------------------------------------ *
@@ -98,6 +100,8 @@ export interface PastTraining {
 export interface OnboardingProfile {
   id: string;
   userId: string;
+  /** Identifiant métier de l'employé (notifications, preuves, certificats). */
+  employeeId: string;
   firstName: string;
   lastName: string;
   email: string;

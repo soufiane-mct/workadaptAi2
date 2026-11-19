@@ -47,6 +47,7 @@ export const DEMO_ACCOUNTS: User[] = [
     jobTitle: 'Développeur backend',
     department: 'Ingénierie',
     initials: 'SM',
+    employeeId: 'emp-0001',
   },
   {
     id: 'usr-0002',
@@ -84,6 +85,7 @@ export const DEMO_ACCOUNTS: User[] = [
 export const INITIAL_PROFILE: OnboardingProfile = {
   id: 'prof-0001',
   userId: 'usr-0001',
+  employeeId: 'emp-0001',
   firstName: 'Soufiane',
   lastName: 'Mechta',
   email: 'soufiane.mechta@workadapt.demo',

@@ -37,14 +37,21 @@ export class NotificationService {
     return notification;
   }
 
-  forRole(role: Role): AppNotification[] {
+  /**
+   * Notifications visibles pour un rôle donné.
+   *
+   * Un employé ne voit que ses propres notifications ; les rôles
+   * d'encadrement et les RH voient l'ensemble de la boucle.
+   */
+  forRole(role: Role, employeeId?: string): AppNotification[] {
     return [...this._notifications()]
       .filter((item) => item.audience.includes(role))
+      .filter((item) => this.visibleTo(item, role, employeeId))
       .sort((a, b) => b.at.localeCompare(a.at));
   }
 
-  unreadFor(role: Role): number {
-    return this.forRole(role).filter((item) => !item.read).length;
+  unreadFor(role: Role, employeeId?: string): number {
+    return this.forRole(role, employeeId).filter((item) => !item.read).length;
   }
 
   markRead(id: string): void {
@@ -53,9 +60,20 @@ export class NotificationService {
     );
   }
 
-  markAllRead(role: Role): void {
+  markAllRead(role: Role, employeeId?: string): void {
+    const visible = new Set(this.forRole(role, employeeId).map((item) => item.id));
     this._notifications.update((items) =>
-      items.map((item) => (item.audience.includes(role) ? { ...item, read: true } : item)),
+      items.map((item) =>
+        visible.has(item.id) ? { ...item, read: true } : item,
+      ),
     );
+  }
+
+  /** Une notification d'employé ne quitte jamais le périmètre de son employé. */
+  private visibleTo(item: AppNotification, role: Role, employeeId?: string): boolean {
+    if (role !== 'EMPLOYEE' || !employeeId) {
+      return true;
+    }
+    return !item.employeeId || item.employeeId === employeeId;
   }
 }

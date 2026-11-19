@@ -84,6 +84,8 @@ export class StepVerificationService {
     /** Notions attendues par le curriculum (objectif, points clés, critères). */
     notions: string[];
     evidence: StepEvidence;
+    /** Employé concerné : cible des notifications adressées. */
+    employeeId?: string;
   }): StepVerification {
     const evidence = input.evidence;
     const checked: string[] = [];
@@ -331,7 +333,7 @@ export class StepVerificationService {
         message: `${AGENT} — ${gaps[0] ?? 'La preuve envoyée est insuffisante.'}`,
         audience: rejections >= 2 ? ['EMPLOYEE', 'MANAGER'] : ['EMPLOYEE'],
         link: `/app/formations/${input.requestId}`,
-        employeeId: 'emp-0001',
+        employeeId: input.employeeId ?? 'emp-0001',
       });
     }
 

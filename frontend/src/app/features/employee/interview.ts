@@ -186,11 +186,16 @@ const SCRIPT: ScriptStep[] = [
                   {{ draft().trim().length }} caractères — 40 minimum pour être exploitable
                 </span>
                 <div class="composer__actions">
-                  <button class="btn btn--small" type="button" (click)="skip()">
+                  <button class="btn btn--small" type="button" [disabled]="typing()" (click)="skip()">
                     <span class="material-symbols-outlined">skip_next</span>
                     Passer cette question
                   </button>
-                  <button class="btn btn--primary" type="button" [disabled]="draft().trim().length < 40" (click)="send()">
+                  <button
+                    class="btn btn--primary"
+                    type="button"
+                    [disabled]="draft().trim().length < 40 || typing()"
+                    (click)="send()"
+                  >
                     <span class="material-symbols-outlined">send</span>
                     Répondre
                   </button>
@@ -453,6 +458,14 @@ export class InterviewPage {
   readonly relances = signal<Record<string, number>>({});
   readonly result = signal<InterviewDiagnosticResult | undefined>(undefined);
 
+  /**
+   * Jeton de tour : toute action de l'employé (répondre, passer, relancer)
+   * invalide la réponse en attente de l'agent. Sans ce garde-fou, un clic
+   * sur « Passer cette question » pendant l'analyse de l'IA pouvait faire
+   * avancer deux fois et sauter silencieusement un thème.
+   */
+  private turn = 0;
+
   readonly current = computed(() => this.script[Math.min(this.index(), this.script.length - 1)]);
 
   readonly answeredCount = computed(() => Object.keys(this.answers()).length);
@@ -484,15 +497,21 @@ export class InterviewPage {
 
   send(): void {
     const text = this.draft().trim();
-    if (text.length < 40) {
+    if (text.length < 40 || this.typing()) {
       return;
     }
     const step = this.current();
     this.messages.update((list) => [...list, this.userMessage(text)]);
     this.draft.set('');
     this.typing.set(true);
+    const turn = ++this.turn;
 
     window.setTimeout(() => {
+      // L'employé a agi entre-temps (passer, relancer) : cette réponse
+      // n'est plus la réponse attendue, elle est abandonnée.
+      if (turn !== this.turn) {
+        return;
+      }
       this.typing.set(false);
       const coverage = this.coverage(step, text);
       const relances = this.relanceCount(step.id);
@@ -536,6 +555,9 @@ export class InterviewPage {
     if (this.finished()) {
       return;
     }
+    // Passe la question courante : toute analyse en cours est abandonnée.
+    this.turn++;
+    this.typing.set(false);
     const step = this.current();
     this.statuses.update((map) => ({ ...map, [step.id]: 'PASSEE' }));
     this.messages.update((list) => [
@@ -569,6 +591,8 @@ export class InterviewPage {
   }
 
   restart(): void {
+    this.turn++;
+    this.typing.set(false);
     this.messages.set([this.aiMessage(SCRIPT[0].prompt)]);
     this.answers.set({});
     this.statuses.set({});

@@ -46,14 +46,16 @@ export class AuthService {
   /** Inscription simulée : crée un compte employé et ouvre la session. */
   register(input: RegistrationInput): User {
     const initials = `${input.firstName.charAt(0)}${input.lastName.charAt(0)}`.toUpperCase();
+    const id = `usr-reg-${Date.now()}`;
     const user: User = {
-      id: `usr-reg-${Date.now()}`,
+      id,
       name: `${input.firstName} ${input.lastName}`.trim(),
       email: input.email,
       role: 'EMPLOYEE',
       jobTitle: input.jobTitle,
       department: input.department,
       initials,
+      employeeId: `emp-${id}`,
     };
     const accounts = this.registeredAccounts();
     localStorage.setItem(ACCOUNTS_KEY, JSON.stringify([...accounts, user]));

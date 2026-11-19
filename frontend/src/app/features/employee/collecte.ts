@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { COLLECTION_SOURCE_LABELS, CollectionSource } from '../../core/models';
 import { DataService } from '../../core/data/data.service';
 

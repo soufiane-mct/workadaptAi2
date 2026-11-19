@@ -1,11 +1,16 @@
 import { TestBed } from '@angular/core/testing';
 import {
+  CaseAnalysisDocument,
+  DefenseInterviewDocument,
+  EVALUATION_METHODS,
   EvaluationAnswers,
   KnowledgeTestDocument,
   ProfessionalDossierDocument,
   SkillGap,
+  TechnicalChallengeDocument,
 } from '../models';
 import { EvaluationService } from './evaluation.service';
+import { buildEvaluationDocument } from './evaluation/builders';
 import { GapService } from './gap.service';
 import { StepVerificationService } from './step-verification.service';
 import { TrainingService } from './training.service';
@@ -199,5 +204,135 @@ describe('EvaluationService — scoring', () => {
     expect(report!.criteria.reduce((sum, criterion) => sum + criterion.weight, 0)).toBe(100);
     expect(report!.score).toBe(100);
     expect(report!.decision).toBe('REUSSI');
+  });
+
+  /* ---------------------------------------------------------------- *
+   * Les cinq méthodes : instruments réellement distincts
+   * ---------------------------------------------------------------- */
+
+  it('refuse d’ouvrir une évaluation tant que la formation n’est pas terminée', () => {
+    const gap = TestBed.inject(GapService).gaps()[0] as SkillGap;
+    const request = training.generateForGap({ gap, format: 'MULTIMEDIA' });
+
+    const result = evaluation.open(request.id, 'KNOWLEDGE_TEST');
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('formation');
+    expect(evaluation.forRequest(request.id)).toBeUndefined();
+  });
+
+  it('produit un document propre à chacune des cinq méthodes', () => {
+    const requestId = completedTraining();
+    const program = training.programFor(requestId)!;
+
+    const documents = EVALUATION_METHODS.map((method) => buildEvaluationDocument(program, method));
+
+    expect(new Set(documents.map((document) => document.method)).size).toBe(5);
+    expect(new Set(documents.map((document) => document.title)).size).toBe(5);
+    expect(new Set(documents.map((document) => document.instructions.join('|'))).size).toBe(5);
+  });
+
+  it('invalide une tâche technique dont le critère éliminatoire n’est pas vérifié', () => {
+    const requestId = completedTraining();
+    evaluation.open(requestId, 'TECHNICAL_CHALLENGE');
+    evaluation.start(requestId);
+    const document = evaluation.forRequest(requestId)!.document as TechnicalChallengeDocument;
+
+    const answers: EvaluationAnswers = {};
+    for (const task of document.tasks) {
+      // Tous les critères sauf le premier : le critère éliminatoire manque.
+      answers[task.id] = task.successCriteria.map((_, index) => index).filter((index) => index !== 0);
+    }
+
+    const report = evaluation.submit(requestId, answers);
+
+    expect(report!.score).toBe(0);
+    expect(report!.decision).toBe('ECHOUE');
+  });
+
+  it('récompense une épreuve technique entièrement vérifiée', () => {
+    const requestId = completedTraining();
+    evaluation.open(requestId, 'TECHNICAL_CHALLENGE');
+    evaluation.start(requestId);
+    const document = evaluation.forRequest(requestId)!.document as TechnicalChallengeDocument;
+
+    const answers: EvaluationAnswers = {};
+    for (const task of document.tasks) {
+      answers[task.id] = task.successCriteria.map((_, index) => index);
+    }
+
+    const report = evaluation.submit(requestId, answers);
+
+    expect(report!.score).toBe(100);
+    expect(report!.decision).toBe('REUSSI');
+  });
+
+  it('valorise une analyse de cas structurée', () => {
+    const requestId = completedTraining();
+    evaluation.open(requestId, 'CASE_ANALYSIS');
+    evaluation.start(requestId);
+    const document = evaluation.forRequest(requestId)!.document as CaseAnalysisDocument;
+
+    const answers: EvaluationAnswers = {};
+    for (const question of document.questions) {
+      answers[question.id] = `${question.expectedThemes.join(', ')} : faits observés, hypothèses écartées, décisions priorisées, indicateurs de suivi, risques et parades documentés dans le dossier.`;
+    }
+
+    const report = evaluation.submit(requestId, answers);
+
+    expect(report!.score).toBe(100);
+    expect(report!.decision).toBe('REUSSI');
+  });
+
+  it('sanctionne une analyse de cas sans justification', () => {
+    const requestId = completedTraining();
+    evaluation.open(requestId, 'CASE_ANALYSIS');
+    evaluation.start(requestId);
+    const document = evaluation.forRequest(requestId)!.document as CaseAnalysisDocument;
+
+    const answers: EvaluationAnswers = {};
+    for (const question of document.questions) {
+      answers[question.id] = 'Je ne sais pas répondre.';
+    }
+
+    const report = evaluation.submit(requestId, answers);
+
+    expect(report!.score).toBeLessThan(20);
+    expect(report!.decision).toBe('ECHOUE');
+  });
+
+  it('normalise la soutenance sur 100 à partir des thèmes attendus', () => {
+    const requestId = completedTraining();
+    evaluation.open(requestId, 'DEFENSE_INTERVIEW');
+    evaluation.start(requestId);
+    const document = evaluation.forRequest(requestId)!.document as DefenseInterviewDocument;
+
+    const answers: EvaluationAnswers = {};
+    for (const question of document.questions) {
+      answers[question.id] = `${question.expectedThemes.join(', ')} : position, justification, limite reconnue et exemple concret tiré de ma pratique, avec les conditions de réversibilité.`;
+    }
+
+    const report = evaluation.submit(requestId, answers);
+
+    expect(report!.score).toBe(100);
+    expect(report!.decision).toBe('REUSSI');
+    expect(report!.criteria.some((criterion) => criterion.id === 'defense-global')).toBe(true);
+  });
+
+  it('signale un drapeau rouge en soutenance', () => {
+    const requestId = completedTraining();
+    evaluation.open(requestId, 'DEFENSE_INTERVIEW');
+    evaluation.start(requestId);
+    const document = evaluation.forRequest(requestId)!.document as DefenseInterviewDocument;
+
+    const answers: EvaluationAnswers = {};
+    for (const question of document.questions) {
+      answers[question.id] = 'Je ne sais pas.';
+    }
+
+    const report = evaluation.submit(requestId, answers);
+
+    expect(report!.score).toBe(0);
+    expect(report!.decision).toBe('ECHOUE');
   });
 });

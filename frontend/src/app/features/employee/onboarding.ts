@@ -154,6 +154,7 @@ export class Onboarding {
     }
 
     let userId = this.data.profile().userId;
+    let employeeId = this.data.profile().employeeId;
     if (this.isRegister()) {
       const account = this.auth.register({
         firstName: this.firstName(),
@@ -163,11 +164,16 @@ export class Onboarding {
         department: this.department() || 'Non renseigné',
       });
       userId = account.id;
+      // Un nouvel employé reçoit son propre identifiant métier : ses
+      // notifications et ses preuves ne doivent jamais être confondues
+      // avec celles d'un autre collaborateur.
+      employeeId = `emp-${account.id}`;
     }
 
     const profile: OnboardingProfile = {
       ...this.data.profile(),
       userId,
+      employeeId,
       firstName: this.firstName().trim(),
       lastName: this.lastName().trim(),
       email: this.email().trim(),

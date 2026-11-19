@@ -22,7 +22,6 @@ import {
   programId,
   recommendedEvaluations,
   scenariosFor,
-  targetHours,
   unitCount,
 } from './helpers';
 
@@ -53,7 +52,6 @@ function examQuestions(pack: KnowledgePack, count: number, prefix: string): Exam
  * Aucun quiz final : la preuve est un dossier de notes et une restitution.
  */
 export function buildMultimediaProgram(ctx: BuildContext, pack: KnowledgePack): MultimediaProgram {
-  const hours = targetHours(ctx);
   const count = unitCount(ctx, 55);
   const concepts = padConcepts(pack, count);
 
@@ -115,7 +113,6 @@ export function buildMultimediaProgram(ctx: BuildContext, pack: KnowledgePack): 
       episodes.map((episode) => episode.title),
     ),
     completion: completionCriteria(
-      ctx,
       totalHours,
       episodes.length,
       'Dossier de synthèse complet, carte conceptuelle et restitution écrite',
@@ -144,7 +141,6 @@ export function buildMultimediaProgram(ctx: BuildContext, pack: KnowledgePack): 
  * Le quiz est ici chez lui, mais réparti sur plusieurs sessions.
  */
 export function buildInteractiveProgram(ctx: BuildContext, pack: KnowledgePack): InteractiveProgram {
-  const hours = targetHours(ctx);
   const count = unitCount(ctx, 55);
   const concepts = padConcepts(pack, count);
 
@@ -195,7 +191,6 @@ export function buildInteractiveProgram(ctx: BuildContext, pack: KnowledgePack):
       drillSets.map((set) => set.title),
     ),
     completion: completionCriteria(
-      ctx,
       totalHours,
       drillSets.length,
       'Tous les decks au-dessus de 80 % de maîtrise, sur plusieurs sessions espacées',
@@ -223,7 +218,6 @@ export function buildInteractiveProgram(ctx: BuildContext, pack: KnowledgePack):
  * Aucun quiz : la preuve est l’exécution réussie.
  */
 export function buildPracticalProgram(ctx: BuildContext, pack: KnowledgePack): PracticalProgram {
-  const hours = targetHours(ctx);
   const count = unitCount(ctx, 75);
   const labs = labsFor(pack, count, ctx);
 
@@ -269,7 +263,6 @@ export function buildPracticalProgram(ctx: BuildContext, pack: KnowledgePack): P
       units.map((unit) => unit.title),
     ),
     completion: completionCriteria(
-      ctx,
       totalHours,
       units.length,
       'Tous les labs validés + tâche pratique finale conforme aux critères',
@@ -297,7 +290,6 @@ export function buildPracticalProgram(ctx: BuildContext, pack: KnowledgePack): P
  * 4. PROJET — jalons, livrables intermédiaires, revue finale par rubrique.
  */
 export function buildProjectProgram(ctx: BuildContext, pack: KnowledgePack): ProjectProgram {
-  const hours = targetHours(ctx);
   const count = unitCount(ctx, 150, 6, 8);
   const concepts = padConcepts(pack, count);
 
@@ -349,7 +341,6 @@ export function buildProjectProgram(ctx: BuildContext, pack: KnowledgePack): Pro
       milestones.map((milestone) => milestone.title),
     ),
     completion: completionCriteria(
-      ctx,
       totalHours,
       milestones.length,
       'Tous les jalons validés + livrable final accepté selon la rubrique',
@@ -382,7 +373,6 @@ export function buildProjectProgram(ctx: BuildContext, pack: KnowledgePack): Pro
  * Aucun cours : on agit dans une situation professionnelle.
  */
 export function buildSimulationProgram(ctx: BuildContext, pack: KnowledgePack): SimulationProgram {
-  const hours = targetHours(ctx);
   const count = unitCount(ctx, 80);
   const scenarios = scenariosFor(pack, count, ctx);
 
@@ -396,7 +386,7 @@ export function buildSimulationProgram(ctx: BuildContext, pack: KnowledgePack): 
     decisions: scenario.decisions.map((decision, decisionIndex) => ({
       id: `dec-${index + 1}-${decisionIndex + 1}`,
       prompt: decision.prompt,
-      options: decision.options.map((option, optionIndex) => ({
+      options: decision.options.map((option) => ({
         label: option.label,
         outcome: option.outcome,
         score: option.score,
@@ -439,7 +429,6 @@ export function buildSimulationProgram(ctx: BuildContext, pack: KnowledgePack): 
       units.map((unit) => unit.title),
     ),
     completion: completionCriteria(
-      ctx,
       totalHours,
       units.length,
       'Tous les scénarios résolus avec un score de décision suffisant + débrief complété',
@@ -465,7 +454,6 @@ export function buildSimulationProgram(ctx: BuildContext, pack: KnowledgePack): 
  * 6. TUTEUR IA — sessions socratiques, niveaux d’explication, teach-back.
  */
 export function buildAiTutoredProgram(ctx: BuildContext, pack: KnowledgePack): AiTutoredProgram {
-  const hours = targetHours(ctx);
   const count = unitCount(ctx, 55);
   const concepts = padConcepts(pack, count);
 
@@ -526,7 +514,6 @@ export function buildAiTutoredProgram(ctx: BuildContext, pack: KnowledgePack): A
       sessions.map((session) => session.topic),
     ),
     completion: completionCriteria(
-      ctx,
       totalHours,
       sessions.length,
       'Toutes les sessions terminées + teach-back validé + exercice nouveau réussi',
@@ -553,7 +540,6 @@ export function buildAiTutoredProgram(ctx: BuildContext, pack: KnowledgePack): A
  * 7. COLLABORATIF — sprints d’équipe, rôles, revue par les pairs, livrable commun.
  */
 export function buildCollaborativeProgram(ctx: BuildContext, pack: KnowledgePack): CollaborativeProgram {
-  const hours = targetHours(ctx);
   const count = unitCount(ctx, 210, 4, 6);
   const concepts = padConcepts(pack, count);
 
@@ -606,7 +592,6 @@ export function buildCollaborativeProgram(ctx: BuildContext, pack: KnowledgePack
       sprints.map((sprint) => sprint.title),
     ),
     completion: completionCriteria(
-      ctx,
       totalHours,
       sprints.length,
       'Livrable d’équipe accepté + contribution individuelle identifiée + toutes les revues réalisées',

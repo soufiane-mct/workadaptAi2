@@ -22,10 +22,6 @@
     "@angular/router": "^22.2.0",
     "@fontsource/material-symbols-outlined": "^5.3.9",
     "@fontsource/roboto": "^5.3.0",
-    "@ngx-translate/core": "^18.1.0",
-    "@ngx-translate/http-loader": "^18.1.0",
-    "echarts": "^6.1.0",
-    "ngx-echarts": "^22.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

@@ -331,7 +331,6 @@ export class HrReportsPage {
   }
 
   generate(): void {
-    const kind = this.kind();
     const item: ExportResult = {
       type: this.format(),
       title: this.kindLabel(),

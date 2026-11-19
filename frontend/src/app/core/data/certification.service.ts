@@ -8,7 +8,6 @@ import {
 import { AuditService } from './audit.service';
 import { CollectionService } from './collection.service';
 import { EvaluationService } from './evaluation.service';
-import { GapService } from './gap.service';
 import { INITIAL_CERTIFICATES } from './mock-data';
 import { NotificationService } from './notification.service';
 import { ProfileService } from './profile.service';
@@ -28,7 +27,6 @@ export class CertificationService {
   private readonly training = inject(TrainingService);
   private readonly collection = inject(CollectionService);
   private readonly profileService = inject(ProfileService);
-  private readonly gaps = inject(GapService);
   private readonly notifications = inject(NotificationService);
   private readonly audit = inject(AuditService);
 

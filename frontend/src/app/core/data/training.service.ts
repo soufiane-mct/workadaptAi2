@@ -144,7 +144,7 @@ export class TrainingService {
     const requestId = `treq-${Date.now()}`;
     const request: TrainingRequest = {
       id: requestId,
-      employeeId: 'emp-0001',
+      employeeId: this.profileService.employeeId(),
       employeeName: this.profileService.fullName(),
       gapId: gap.id,
       skillCode: gap.skillCode,
@@ -184,7 +184,7 @@ export class TrainingService {
         message: `${FORMAT_LABELS[format]} · ${program.estimatedHours} h · ${program.estimatedDays} jours · ${programUnits(program).length} unités. En attente de validation du superviseur.`,
         audience: [manager],
         link: `/app/validations/${requestId}`,
-        employeeId: 'emp-0001',
+        employeeId: request.employeeId,
       });
     }
 
@@ -667,7 +667,7 @@ export class TrainingService {
       message: `${input.reason} Un nouveau parcours ${FORMAT_LABELS[input.format].toLowerCase()} a été généré et soumis au superviseur.`,
       audience: ['EMPLOYEE', 'MANAGER'],
       link: `/app/validations/${request.id}`,
-      employeeId: 'emp-0001',
+      employeeId: request.employeeId,
     });
     return request;
   }
@@ -819,7 +819,7 @@ export class TrainingService {
         message: `Votre formation est terminée. L’écart ${gap.skillLabel} (${gap.currentLevel}/${gap.targetLevel}) peut maintenant être traité.`,
         audience: ['EMPLOYEE'],
         link: `/app/ecarts/${gap.id}`,
-        employeeId: 'emp-0001',
+        employeeId: this.profileService.employeeId(),
       });
     }
   }

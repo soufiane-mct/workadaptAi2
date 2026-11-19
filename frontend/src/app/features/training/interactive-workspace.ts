@@ -433,7 +433,6 @@ export class InteractiveWorkspace extends WorkspaceBase {
       return;
     }
     const drills = deck.drills;
-    const correct = drills.filter((question) => this.isCorrect(question)).length;
     const evidence: StepEvidence = {
       unitId: deckId,
       format: 'INTERACTIVE',

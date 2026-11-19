@@ -132,6 +132,7 @@ export abstract class WorkspaceBase implements OnInit, OnDestroy {
       format: input.format,
       notions: input.notions,
       evidence: input.evidence,
+      employeeId: this.request().employeeId,
     });
     this.verification.set(verification);
     return verification;
