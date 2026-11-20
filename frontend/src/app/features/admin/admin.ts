@@ -164,7 +164,8 @@ import { DataService } from '../../core/data/data.service';
                 <strong>Mode démonstration</strong>
                 <p class="wa-small wa-muted">
                   Compression du temps (facteur ×20) pour dérouler la boucle complète. Les
-                  conditions de fin restent réelles : la durée des unités est créditée.
+                  conditions de fin restent réelles : la durée des unités est créditée. Hors
+                  ce mode, le contrôle de cohérence temporelle des preuves s’applique.
                 </p>
               </div>
               <label class="switch">

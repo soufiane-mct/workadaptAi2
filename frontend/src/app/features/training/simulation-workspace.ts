@@ -423,7 +423,6 @@ export class SimulationWorkspace extends WorkspaceBase {
 
   openScenario(unitId: string): void {
     this.select(unitId);
-    this.verification.set(undefined);
   }
 
   answerFor(decision: SimulationDecision) {

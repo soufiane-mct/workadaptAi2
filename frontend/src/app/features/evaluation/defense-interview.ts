@@ -1,20 +1,29 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  OnInit,
+  output,
+  signal,
+} from '@angular/core';
 import {
   DefenseInterviewDocument,
   EvaluationAnswers,
   EvaluationRecord,
   InterviewQuestion,
 } from '../../core/models';
+import { textAnswers } from './answers';
 
 @Component({
   selector: 'wa-defense-interview',
   template: `
     <div class="jury">
       <header class="jury__head">
-        <div class="jury__live"><i></i> Entretien enregistré</div>
+        <div class="jury__live"><i></i> Entretien simulé</div>
         <div class="jury__title">
           <strong>{{ doc().title }}</strong>
-          <small>Jury de 3 évaluateurs · {{ doc().durationMinutes }} minutes · {{ doc().questions.length }} questions</small>
+          <small>Jury de 3 évaluateurs · durée indicative {{ doc().durationMinutes }} minutes · {{ doc().questions.length }} questions</small>
         </div>
       </header>
 
@@ -75,6 +84,7 @@ import {
               <textarea
                 class="wa-textarea"
                 rows="8"
+                [attr.aria-label]="'Réponse à la question du jury : ' + question.prompt"
                 [value]="answer(question.id)"
                 (input)="setAnswer(question.id, $any($event.target).value)"
                 placeholder="Répondez comme à l’oral : commencez par votre position, puis justifiez et nuancez."
@@ -376,13 +386,25 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DefenseInterview {
+export class DefenseInterview implements OnInit {
   readonly record = input.required<EvaluationRecord>();
+  /** Brouillon de réponses déjà saisies (conservé à la navigation). */
+  readonly draft = input<EvaluationAnswers>({});
+  /** Émis à chaque modification : le parent conserve le brouillon. */
+  readonly changed = output<EvaluationAnswers>();
   readonly submitted = output<EvaluationAnswers>();
 
   readonly doc = computed(() => this.record().document as DefenseInterviewDocument);
   readonly index = signal(0);
   private readonly answers = signal<Record<string, string>>({});
+
+  /**
+   * Réhydratation : quitter l'épreuve puis y revenir ne doit pas effacer
+   * les réponses déjà données au jury.
+   */
+  ngOnInit(): void {
+    this.answers.set(textAnswers(this.draft()));
+  }
 
   readonly current = computed(() => {
     const items = this.doc().questions;
@@ -405,6 +427,16 @@ export class DefenseInterview {
 
   setAnswer(questionId: string, value: string): void {
     this.answers.update((map) => ({ ...map, [questionId]: value }));
+    this.changed.emit(this.currentAnswers());
+  }
+
+  /** Réponses courantes, dans le format attendu par le correcteur. */
+  currentAnswers(): EvaluationAnswers {
+    const answers: EvaluationAnswers = {};
+    for (const question of this.doc().questions) {
+      answers[question.id] = this.answer(question.id);
+    }
+    return answers;
   }
 
   isDone(question: InterviewQuestion): boolean {
@@ -436,10 +468,6 @@ export class DefenseInterview {
     if (!this.canSubmit()) {
       return;
     }
-    const answers: EvaluationAnswers = {};
-    for (const question of this.doc().questions) {
-      answers[question.id] = this.answer(question.id);
-    }
-    this.submitted.emit(answers);
+    this.submitted.emit(this.currentAnswers());
   }
 }

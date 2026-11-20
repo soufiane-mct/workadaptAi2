@@ -76,7 +76,7 @@ type NotificationFilter = 'ALL' | 'UNREAD' | 'TRAINING' | 'GAP' | 'EVALUATION';
                 <div class="notif__head">
                   <strong>{{ notification.title }}</strong>
                   @if (!notification.read) {
-                    <span class="notif__dot" aria-label="Non lue"></span>
+                    <span class="notif__dot" role="status" aria-label="Notification non lue"></span>
                   }
                 </div>
                 <p>{{ notification.message }}</p>

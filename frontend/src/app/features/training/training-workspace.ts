@@ -67,7 +67,12 @@ export class TrainingWorkspace {
   readonly isPending = computed(() => this.request()?.status === 'PENDING');
   readonly isCompleted = computed(() => this.request()?.status === 'COMPLETED');
   readonly canSubmitCapstone = computed(
-    () => this.completion().missingUnits.length === 0 && !this.progress()?.capstoneValidated,
+    () =>
+      this.completion().missingUnits.length === 0 &&
+      !this.progress()?.capstoneValidated &&
+      // Le service exige une preuve substantielle : le bouton ne doit pas
+      // promettre un dépôt qui serait refusé.
+      this.capstoneProof().trim().length >= 20,
   );
 
   readonly accent = computed(() => ACCENTS[this.program()?.format ?? 'MULTIMEDIA']);

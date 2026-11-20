@@ -208,9 +208,9 @@ export class ResultsPage {
   private readonly data = inject(DataService);
 
   readonly reports = computed(() =>
-    [...this.data.evaluationReports()].sort((a, b) => b.at.localeCompare(a.at)),
+    [...this.data.supervisorReports()].sort((a, b) => b.at.localeCompare(a.at)),
   );
-  readonly certificates = this.data.certificates;
+  readonly certificates = this.data.supervisorCertificates;
   readonly methodLabels = EVALUATION_METHOD_LABELS;
 
   readonly filters: { value: 'ALL' | 'REUSSI' | 'ECHOUE'; label: string }[] = [

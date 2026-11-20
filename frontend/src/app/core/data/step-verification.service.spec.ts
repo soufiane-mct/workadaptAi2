@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { StepEvidence } from '../models';
 import { StepVerificationService } from './step-verification.service';
+import { WorkflowStateService } from './workflow-state.service';
 
 /**
  * Non-régression de l'agent d'analyse des preuves d'étape.
@@ -114,6 +115,57 @@ describe('StepVerificationService — agent d’analyse des preuves', () => {
 
     expect(verdict.verdict).not.toBe('VALIDE');
     expect(verdict.gaps.some((gap) => gap.includes('sortie observable'))).toBe(true);
+  });
+
+  it('applique le contrôle de cohérence temporelle hors mode démonstration', () => {
+    const workflow = TestBed.inject(WorkflowStateService);
+    workflow.setDemoMode(false);
+
+    const verdict = service.verify({
+      requestId,
+      unitId,
+      unitTitle,
+      format: 'PRACTICAL',
+      notions: [],
+      evidence: solidEvidence({ durationMinutes: 0 }),
+    });
+
+    expect(verdict.verdict).not.toBe('VALIDE');
+    expect(verdict.gaps.some((gap) => gap.includes('travail réel'))).toBe(true);
+  });
+
+  it('signale un temps insuffisant par rapport à la durée attendue', () => {
+    const workflow = TestBed.inject(WorkflowStateService);
+    workflow.setDemoMode(false);
+
+    const verdict = service.verify({
+      requestId,
+      unitId,
+      unitTitle,
+      format: 'PRACTICAL',
+      notions: [],
+      evidence: solidEvidence({ durationMinutes: 2, expectedMinutes: 30 }),
+    });
+
+    expect(verdict.gaps.some((gap) => gap.includes('incohérent'))).toBe(true);
+  });
+
+  it('écarte le contrôle temporel en mode démonstration (temps compressé)', () => {
+    const workflow = TestBed.inject(WorkflowStateService);
+    workflow.setDemoMode(true);
+
+    const verdict = service.verify({
+      requestId,
+      unitId,
+      unitTitle,
+      format: 'PRACTICAL',
+      notions: [],
+      evidence: solidEvidence({ durationMinutes: 0 }),
+    });
+
+    expect(verdict.verdict).toBe('VALIDE');
+    expect(verdict.gaps.length).toBe(0);
+    expect(verdict.checked.some((line) => line.includes('compressée'))).toBe(true);
   });
 
   it('conserve l’historique des verdicts par unité', () => {

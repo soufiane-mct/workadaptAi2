@@ -350,13 +350,21 @@ export class ProjectWorkspace extends WorkspaceBase {
   readonly proofs = signal<Record<string, string>>({});
   readonly delivered = signal<string[]>([]);
 
+  /**
+   * Jalons livrés moins jalons validés par l'agent. Le compteur ne peut
+   * pas être négatif : après relecture, `delivered` est vide alors que les
+   * unités sont déjà terminées.
+   */
   readonly pendingReviews = computed(
-    () => this.delivered().length - this.progress().units.filter((unit) => unit.status === 'DONE').length,
+    () =>
+      Math.max(
+        0,
+        this.delivered().length - this.progress().units.filter((unit) => unit.status === 'DONE').length,
+      ),
   );
 
   selectMilestone(unitId: string): void {
     this.select(unitId);
-    this.verification.set(undefined);
   }
 
   taskDone(milestoneId: string): number[] {
@@ -428,7 +436,10 @@ export class ProjectWorkspace extends WorkspaceBase {
       evidence,
     });
 
-    if (this.completeValidated(milestone.id, Math.round(milestone.estimatedMinutes * 0.9), verification)) {
+    // Le temps crédité correspond à la durée de curriculum du jalon : la
+    // condition de fin exige la somme des durées unitaires, un crédit
+    // partiel rendrait le parcours impossible à terminer.
+    if (this.completeValidated(milestone.id, milestone.estimatedMinutes, verification)) {
       this.delivered.update((list) => [...list, milestone.id]);
     }
   }

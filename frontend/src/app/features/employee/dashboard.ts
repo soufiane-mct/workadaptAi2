@@ -337,10 +337,10 @@ export class EmployeeDashboard {
   readonly skills = this.data.skills;
   readonly actionable = this.data.actionableGaps;
   readonly queued = this.data.queuedGaps;
-  readonly certificates = this.data.certificates;
+  readonly certificates = this.data.myCertificates;
   readonly averageLevel = this.data.averageLevel;
   readonly totalGapPoints = this.data.totalGapPoints;
-  readonly inProgress = this.data.trainingInProgress;
+  readonly inProgress = this.data.myTrainingInProgress;
   readonly notifications = computed(() => this.data.notificationsForCurrentRole());
   readonly formats = FORMAT_LABELS;
 

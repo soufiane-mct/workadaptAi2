@@ -335,4 +335,93 @@ describe('EvaluationService — scoring', () => {
     expect(report!.score).toBe(0);
     expect(report!.decision).toBe('ECHOUE');
   });
+
+  /* ---------------------------------------------------------------- *
+   * Règles éliminatoires : elles invalident, le score ne compense pas
+   * ---------------------------------------------------------------- */
+
+  it('invalide le test de connaissances si une question éliminatoire est ratée', () => {
+    const requestId = completedTraining();
+    const document = openKnowledgeTest(requestId);
+    const answers = correctAnswers(document);
+    // Une seule question éliminatoire ratée : tout le reste est parfait.
+    const critical = document.sections
+      .flatMap((section) => section.questions)
+      .find((question) => question.critical === true);
+    expect(critical).toBeTruthy();
+    answers[critical!.id] =
+      critical!.type === 'OPEN' || critical!.type === 'TECHNICAL'
+        ? 'Réponse hors sujet, sans rapport avec la notion attendue.'
+        : [];
+
+    const report = evaluation.submit(requestId, answers);
+
+    expect(report!.decision).toBe('ECHOUE');
+    expect(report!.blocking?.length).toBeGreaterThan(0);
+    expect(report!.gaps.join(' ')).toContain('éliminatoire');
+  });
+
+  it('refuse un dossier professionnel incomplet sur une exigence obligatoire', () => {
+    const requestId = completedTraining();
+    evaluation.open(requestId, 'PROFESSIONAL_DOSSIER');
+    evaluation.start(requestId);
+    const document = evaluation.forRequest(requestId)!.document as ProfessionalDossierDocument;
+
+    const answers: EvaluationAnswers = {};
+    for (const requirement of document.requirements) {
+      answers[requirement.id] = `${requirement.description} ${requirement.label} : contexte, démarche, réalisation, contrôles, risques et limites documentés.`;
+    }
+    for (const question of document.defenseQuestions) {
+      answers[question.id] = `${question.expectedThemes.join(', ')} : je défends ce choix, l'alternative écartée et la conséquence observée.`;
+    }
+    // Une exigence obligatoire n'est pas fournie.
+    const mandatory = document.requirements.find((requirement) => requirement.mandatory);
+    delete answers[mandatory!.id];
+
+    const report = evaluation.submit(requestId, answers);
+
+    expect(report!.decision).toBe('ECHOUE');
+    expect(report!.blocking?.some((reason) => reason.includes(mandatory!.label))).toBe(true);
+  });
+
+  it('invalide la soutenance si une notion fondamentale est traitée en drapeau rouge', () => {
+    const requestId = completedTraining();
+    evaluation.open(requestId, 'DEFENSE_INTERVIEW');
+    evaluation.start(requestId);
+    const document = evaluation.forRequest(requestId)!.document as DefenseInterviewDocument;
+
+    const answers: EvaluationAnswers = {};
+    for (const question of document.questions) {
+      answers[question.id] = `${question.expectedThemes.join(', ')} : position, justification, limite reconnue et exemple concret tiré de ma pratique, avec les conditions de réversibilité.`;
+    }
+    // Erreur critique sur une notion fondamentale, les relances sont bonnes.
+    const fond = document.questions.find((question) => question.kind === 'FOND');
+    expect(fond).toBeTruthy();
+    answers[fond!.id] = 'Aucune idée, je ne sais pas.';
+
+    const report = evaluation.submit(requestId, answers);
+
+    expect(report!.decision).toBe('ECHOUE');
+    expect(report!.blocking?.some((reason) => reason.includes('fondamentale'))).toBe(true);
+  });
+
+  it('transmet la note d’exécution et le journal de l’épreuve technique', () => {
+    const requestId = completedTraining();
+    evaluation.open(requestId, 'TECHNICAL_CHALLENGE');
+    evaluation.start(requestId);
+    const document = evaluation.forRequest(requestId)!.document as TechnicalChallengeDocument;
+
+    const answers: EvaluationAnswers = {};
+    for (const task of document.tasks) {
+      answers[task.id] = task.successCriteria.map((_, index) => index);
+      answers[`${task.id}::note`] = 'Image multi-étapes, utilisateur non root, healthcheck OK.';
+      answers[`${task.id}::log`] = '$ vérif --tache ' + task.id;
+    }
+
+    const report = evaluation.submit(requestId, answers);
+
+    const task = report!.criteria.find((criterion) => criterion.id === document.tasks[0].id);
+    expect(task!.evidence).toContain('healthcheck');
+    expect(task!.evidence).toContain('vérif');
+  });
 });

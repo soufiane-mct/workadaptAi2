@@ -117,15 +117,17 @@ export const routes: Routes = [
           import('./features/legal/confidentiality').then((m) => m.ConfidentialityPage),
       },
       {
+        // La décision d'approuver un curriculum est réservée au superviseur :
+        // aucun rôle technique ne peut le faire.
         path: 'validations',
-        canActivate: [roleGuard(['MANAGER', 'ADMIN'])],
+        canActivate: [roleGuard(['MANAGER'])],
         title: 'Validations — WorkAdapt AI',
         loadComponent: () =>
           import('./features/supervisor/validations').then((m) => m.ValidationsPage),
       },
       {
         path: 'validations/:requestId',
-        canActivate: [roleGuard(['MANAGER', 'ADMIN'])],
+        canActivate: [roleGuard(['MANAGER'])],
         title: 'Revue de parcours — WorkAdapt AI',
         loadComponent: () =>
           import('./features/supervisor/validation-detail').then((m) => m.ValidationDetail),
@@ -201,15 +203,18 @@ export const routes: Routes = [
           import('./features/hr/hr-certifications').then((m) => m.HrCertificationsPage),
       },
       {
+        // Journal nominatif (acteurs humans) : réservé à l'administrateur.
+        // Le rôle RH reste sur les vues agrégées, sans identité.
         path: 'rh/audit',
-        canActivate: [roleGuard(['RH', 'ADMIN'])],
+        canActivate: [roleGuard(['ADMIN'])],
         title: 'Journal d’audit — WorkAdapt AI',
         loadComponent: () =>
           import('./features/hr/hr-audit').then((m) => m.HrAuditPage),
       },
       {
+        // Annuaire nominatif (nom, e-mail, poste) : réservé à l'administrateur.
         path: 'rh/utilisateurs',
-        canActivate: [roleGuard(['RH', 'ADMIN'])],
+        canActivate: [roleGuard(['ADMIN'])],
         title: 'Utilisateurs — WorkAdapt AI',
         loadComponent: () =>
           import('./features/hr/hr-users').then((m) => m.HrUsersPage),

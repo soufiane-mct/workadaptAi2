@@ -309,6 +309,23 @@ export class MultimediaWorkspace extends WorkspaceBase {
     this.mm().episodes.find((item) => item.id === this.activeUnit()?.id),
   );
 
+  /**
+   * Supports réellement consultés.
+   *
+   * La vidéo est l'onglet affiché par défaut : elle est consultée dès que
+   * l'épisode est ouvert. Sans cette règle, la preuve envoyée à l'agent
+   * indiquait « Vidéo consultée : non » alors que la vidéo était à l'écran.
+   */
+  readonly consulted = computed(() => {
+    const episode = this.episode();
+    const map = this.visited();
+    if (!episode) {
+      return map;
+    }
+    const videoKey = `${episode.id}-video`;
+    return map[videoKey] ? map : { ...map, [videoKey]: true };
+  });
+
   selectUnit(unitId: string): void {
     this.select(unitId);
     this.restitutionDone.set(false);
@@ -348,9 +365,14 @@ export class MultimediaWorkspace extends WorkspaceBase {
       format: 'MULTIMEDIA',
       kind: 'TEXTE',
       steps: [
-        { label: 'Vidéo consultée', done: this.visited()[`${unitId}-video`] === true },
-        { label: 'Article lu', done: this.visited()[`${unitId}-article`] === true },
-        { label: 'Podcast écouté', done: this.visited()[`${unitId}-podcast`] === true },
+        { label: 'Vidéo consultée', done: this.consulted()[`${unitId}-video`] === true },
+        { label: 'Article lu', done: this.consulted()[`${unitId}-article`] === true },
+        { label: 'Podcast écouté', done: this.consulted()[`${unitId}-podcast`] === true },
+        {
+          label: 'Restitution orale effectuée',
+          done: this.restitutionDone(),
+          detail: this.notes(),
+        },
       ],
       criteria: episode.keyPoints.map((point) => ({
         label: point,
@@ -371,8 +393,9 @@ export class MultimediaWorkspace extends WorkspaceBase {
     });
 
     if (this.completeValidated(unitId, episode.estimatedMinutes, verification)) {
+      // Les notes ne sont pas effacées : elles restent visibles pour la
+      // relecture du parcours et sont déjà persistées par saveNotes().
       this.restitutionDone.set(false);
-      this.notes.set('');
     }
   }
 }

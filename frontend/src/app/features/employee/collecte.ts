@@ -141,7 +141,7 @@ import { DataService } from '../../core/data/data.service';
                       <td>{{ run.eventsCount }}</td>
                       <td>{{ run.newGaps }}</td>
                       <td>
-                        <span class="wa-chip" [class]="runClass(run.status)">{{ run.status }}</span>
+                        <span class="wa-chip" [class]="runClass(run.status)">{{ runLabel(run.status) }}</span>
                         @if (run.error) {
                           <div class="wa-small wa-muted" style="margin-top: 4px">{{ run.error }}</div>
                         }
@@ -309,6 +309,20 @@ export class CollectePage {
       : status === 'PARTIAL'
         ? 'wa-chip wa-chip--warning'
         : 'wa-chip wa-chip--neutral';
+  }
+
+  /** Libellé français du statut d'une exécution de collecte. */
+  runLabel(status: string): string {
+    switch (status) {
+      case 'SUCCESS':
+        return 'Réussie';
+      case 'PARTIAL':
+        return 'Partielle';
+      case 'FAILED':
+        return 'Échec';
+      default:
+        return 'En cours';
+    }
   }
 
   runClass(status: string): string {

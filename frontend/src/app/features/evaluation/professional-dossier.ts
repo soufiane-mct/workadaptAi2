@@ -1,10 +1,19 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  OnInit,
+  output,
+  signal,
+} from '@angular/core';
 import {
   DossierRequirement,
   EvaluationAnswers,
   EvaluationRecord,
   ProfessionalDossierDocument,
 } from '../../core/models';
+import { textAnswers } from './answers';
 
 @Component({
   selector: 'wa-professional-dossier',
@@ -14,7 +23,7 @@ import {
         <div class="dossier__tab">Dossier professionnel</div>
         <div class="dossier__title">
           <strong>{{ doc().title }}</strong>
-          <small>{{ doc().submissionDays }} jours de production · {{ doc().requirements.length }} exigences · entretien de vérification inclus</small>
+          <small>Délai indicatif {{ doc().submissionDays }} jours · {{ doc().requirements.length }} exigences · entretien de vérification inclus</small>
         </div>
       </header>
 
@@ -36,8 +45,9 @@ import {
               <span class="weight">{{ weightCovered() }} / {{ totalWeight() }} points couverts</span>
             </div>
             <p class="eval-panel__sub">
-              Chaque exigence est jugée sur la pièce déposée. Une exigence obligatoire absente
-              rend le dossier incomplet, quel que soit le reste.
+              Chaque exigence est jugée sur votre réponse écrite et sur les éléments que vous
+              décrivez. Une exigence obligatoire absente rend le dossier incomplet, quel que
+              soit le reste.
             </p>
 
             @for (requirement of doc().requirements; track requirement.id; let index = $index) {
@@ -58,9 +68,10 @@ import {
                 <textarea
                   class="wa-textarea"
                   rows="3"
+                  [attr.aria-label]="'Exigence « ' + requirement.label + ' » : décrivez votre réponse'"
                   [value]="answer(requirement.id)"
                   (input)="setAnswer(requirement.id, $any($event.target).value)"
-                  [placeholder]="'Décrivez la pièce fournie pour « ' + requirement.label + ' » et où la vérifier.'"
+                  [placeholder]="'Décrivez votre réponse pour « ' + requirement.label + ' » et où la vérifier.'"
                 ></textarea>
                 <span class="piece__count">{{ answer(requirement.id).trim().length }} caractères — 30 minimum</span>
               </article>
@@ -96,7 +107,7 @@ import {
 
           <section class="eval-panel submit">
             <div>
-              <h2>Dépôt final du dossier</h2>
+              <h2>Remise du dossier</h2>
               <p class="eval-panel__sub" style="margin-bottom: 0">
                 {{ mandatoryDone() }} / {{ mandatoryCount() }} exigences obligatoires couvertes ·
                 {{ defenseDone() }} / {{ doc().defenseQuestions.length }} réponses d’entretien.
@@ -104,7 +115,7 @@ import {
             </div>
             <button class="eval-btn eval-btn--primary" type="button" [disabled]="!canSubmit()" (click)="submit()">
               <span class="material-symbols-outlined">task</span>
-              Déposer le dossier professionnel
+              Remettre le dossier professionnel
             </button>
           </section>
         </main>
@@ -374,13 +385,25 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ProfessionalDossier {
+export class ProfessionalDossier implements OnInit {
   readonly record = input.required<EvaluationRecord>();
+  /** Brouillon de réponses déjà saisies (conservé à la navigation). */
+  readonly draft = input<EvaluationAnswers>({});
+  /** Émis à chaque modification : le parent conserve le brouillon. */
+  readonly changed = output<EvaluationAnswers>();
   readonly submitted = output<EvaluationAnswers>();
 
   readonly doc = computed(() => this.record().document as ProfessionalDossierDocument);
   private readonly answers = signal<Record<string, string>>({});
   readonly Math = Math;
+
+  /**
+   * Réhydratation : quitter l'épreuve puis y revenir ne doit pas effacer
+   * les pièces déjà décrites ni les réponses d'entretien.
+   */
+  ngOnInit(): void {
+    this.answers.set(textAnswers(this.draft()));
+  }
 
   answer(id: string): string {
     return this.answers()[id] ?? '';
@@ -388,6 +411,19 @@ export class ProfessionalDossier {
 
   setAnswer(id: string, value: string): void {
     this.answers.update((map) => ({ ...map, [id]: value }));
+    this.changed.emit(this.currentAnswers());
+  }
+
+  /** Réponses courantes, dans le format attendu par le correcteur. */
+  currentAnswers(): EvaluationAnswers {
+    const answers: EvaluationAnswers = {};
+    for (const requirement of this.doc().requirements) {
+      answers[requirement.id] = this.answer(requirement.id);
+    }
+    for (const question of this.doc().defenseQuestions) {
+      answers[question.id] = this.answer(question.id);
+    }
+    return answers;
   }
 
   isDone(requirement: DossierRequirement): boolean {
@@ -431,13 +467,6 @@ export class ProfessionalDossier {
     if (!this.canSubmit()) {
       return;
     }
-    const answers: EvaluationAnswers = {};
-    for (const requirement of this.doc().requirements) {
-      answers[requirement.id] = this.answer(requirement.id);
-    }
-    for (const question of this.doc().defenseQuestions) {
-      answers[question.id] = this.answer(question.id);
-    }
-    this.submitted.emit(answers);
+    this.submitted.emit(this.currentAnswers());
   }
 }

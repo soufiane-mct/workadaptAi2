@@ -184,7 +184,7 @@ export function buildTechnicalChallenge(program: TrainingProgram): TechnicalChal
     method: 'TECHNICAL_CHALLENGE',
     title: `Épreuve technique — ${program.title}`,
     instructions: [
-      'Épreuve chronométrée, individuelle.',
+      'Épreuve individuelle — durée indicative : 150 min.',
       'Les indices sont disponibles mais réduisent le score de la tâche.',
       'Chaque critère est vérifié ; un critère éliminatoire non satisfait invalide la tâche.',
       'Le journal des commandes et décisions fait partie de la preuve.',
@@ -281,10 +281,10 @@ export function buildProfessionalDossier(program: TrainingProgram): Professional
     method: 'PROFESSIONAL_DOSSIER',
     title: `Dossier professionnel — ${program.title}`,
     instructions: [
-      'Production individuelle sur plusieurs jours.',
+      'Production individuelle — délai indicatif : 4 jours.',
       'Le dossier doit être autonome : une personne extérieure doit pouvoir le reprendre.',
       'Les sources, les décisions et les limites doivent être explicites.',
-      'Un entretien court de vérification suit le dépôt pour confirmer la paternité du travail.',
+      'Un entretien court de vérification suit la remise pour confirmer la paternité du travail.',
       'Un dossier incomplet sur un critère éliminatoire est refusé.',
     ],
     submissionDays: 4,
@@ -346,8 +346,8 @@ export function buildDefenseInterview(program: TrainingProgram): DefenseIntervie
     method: 'DEFENSE_INTERVIEW',
     title: `Soutenance professionnelle — ${program.title}`,
     instructions: [
-      'Entretien individuel de 20 à 30 minutes.',
-      'Les questions s’adaptent à vos réponses : attendez-vous à des relances.',
+      'Entretien individuel simulé — durée indicative : 30 minutes.',
+      'Le jury enchaîne questions fondamentales, relances, contre-exemples et situations.',
       'Vous pouvez demander une reformulation, pas une réponse.',
       'Les contre-exemples font partie de l’évaluation.',
       'Une erreur critique sur une notion fondamentale invalide la soutenance.',

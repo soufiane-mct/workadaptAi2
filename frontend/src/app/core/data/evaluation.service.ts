@@ -13,6 +13,7 @@ import {
   EvaluationMethod,
   EvaluationRecord,
   EvaluationReport,
+  ExamQuestion,
   KnowledgeTestDocument,
   ProfessionalDossierDocument,
   TechnicalChallengeDocument,
@@ -73,6 +74,16 @@ export class EvaluationService {
 
   private readonly _records = signal<EvaluationRecord[]>([]);
   private readonly _reports = signal<EvaluationReport[]>([]);
+  /**
+   * Brouillons de réponses, par évaluation.
+   *
+   * Les réponses saisies sont conservées au fil de la navigation : quitter
+   * l'épreuve puis y revenir ne doit pas effacer le travail. Le brouillon
+   * est distinct de l'enregistrement de l'épreuve (qui reste figé à la
+   * remise) pour ne pas modifier l'identité de l'enregistrement — sans
+   * quoi le composant serait recréé à chaque frappe.
+   */
+  private readonly _drafts = signal<Record<string, EvaluationAnswers>>({});
 
   readonly records = this._records.asReadonly();
   readonly reports = this._reports.asReadonly();
@@ -208,6 +219,20 @@ export class EvaluationService {
   }
 
   /* ---------------------------------------------------------------- *
+   * Brouillon de réponses (conservation pendant la passation)
+   * ---------------------------------------------------------------- */
+
+  /** Réponses en cours de saisie pour une évaluation. */
+  draft(evaluationId: string): EvaluationAnswers {
+    return this._drafts()[evaluationId] ?? {};
+  }
+
+  /** Enregistre le brouillon de réponses sans clore l'épreuve. */
+  saveDraft(evaluationId: string, answers: EvaluationAnswers): void {
+    this._drafts.update((drafts) => ({ ...drafts, [evaluationId]: answers }));
+  }
+
+  /* ---------------------------------------------------------------- *
    * Passage et correction
    * ---------------------------------------------------------------- */
 
@@ -232,16 +257,23 @@ export class EvaluationService {
     );
     const score = totalWeight > 0 ? round((weighted / totalWeight) * 100) : 0;
     const passScore = program.completion.passScore;
-    const decision: EvaluationDecision = score >= passScore ? 'REUSSI' : 'ECHOUE';
+    // Une règle éliminatoire violée invalide l'épreuve : le score ne peut
+    // pas compenser une exigence bloquante non satisfaite.
+    const blocking = this.blockingFailures(record.method, record.document, answers);
+    const decision: EvaluationDecision =
+      blocking.length > 0 ? 'ECHOUE' : score >= passScore ? 'REUSSI' : 'ECHOUE';
     const levelBefore = program.levelFrom;
     const levelAfter = this.levelAfter(program, score, decision);
 
     const strengths = corrections
       .filter((item) => item.max > 0 && item.earned / item.max >= 0.8)
       .map((item) => `${item.label} : ${Math.round((item.earned / item.max) * 100)} %`);
-    const gaps = corrections
-      .filter((item) => item.max > 0 && item.earned / item.max < 0.6)
-      .map((item) => `${item.label} : ${Math.round((item.earned / item.max) * 100)} %`);
+    const gaps = [
+      ...corrections
+        .filter((item) => item.max > 0 && item.earned / item.max < 0.6)
+        .map((item) => `${item.label} : ${Math.round((item.earned / item.max) * 100)} %`),
+      ...blocking,
+    ];
 
     const report: EvaluationReport = {
       id: `rep-${record.id}`,
@@ -254,6 +286,7 @@ export class EvaluationService {
       criteria: corrections,
       strengths,
       gaps,
+      blocking,
       feedback: corrections
         .filter((item) => item.comment)
         .map((item) => ({
@@ -313,6 +346,33 @@ export class EvaluationService {
     }
   }
 
+  /**
+   * Ratio de réussite d'une question du test de connaissances.
+   *
+   * Règle unique partagée par la correction et le contrôle des questions
+   * éliminatoires : les deux ne peuvent pas diverger.
+   */
+  private knowledgeRatio(question: ExamQuestion, answer: AnswerValue | undefined): number {
+    if (question.type === 'QCM' || question.type === 'TRUE_FALSE' || question.type === 'SCENARIO') {
+      const picked = Array.isArray(answer) ? answer : [];
+      const ok =
+        picked.length === question.correctIndexes.length &&
+        picked.every((value) => question.correctIndexes.includes(value));
+      return ok ? 1 : 0;
+    }
+    if (question.type === 'MULTI') {
+      const picked = Array.isArray(answer) ? answer : [];
+      const hits = picked.filter((value) => question.correctIndexes.includes(value)).length;
+      const wrong = picked.length - hits;
+      return Math.max(0, (hits - wrong) / Math.max(1, question.correctIndexes.length));
+    }
+    const text = typeof answer === 'string' ? answer : '';
+    // Règle affichée dans l'épreuve : une réponse non justifiée
+    // (aucune notion attendue réellement couverte) ne rapporte aucun point.
+    const covered = coverage(text, words(question.explanation).slice(0, 8));
+    return text.trim().length < 40 ? 0 : covered >= 0.25 ? covered : 0;
+  }
+
   /** Examen écrit : QCM exact, multi partiel, questions ouvertes par mots-clés. */
   private correctKnowledgeTest(
     document: KnowledgeTestDocument,
@@ -324,35 +384,10 @@ export class EvaluationService {
       const notes: string[] = [];
       for (const question of section.questions) {
         max += question.points;
-        const answer = answers[question.id];
-        if (question.type === 'QCM' || question.type === 'TRUE_FALSE' || question.type === 'SCENARIO') {
-          const picked = Array.isArray(answer) ? answer : [];
-          const ok =
-            picked.length === question.correctIndexes.length &&
-            picked.every((value) => question.correctIndexes.includes(value));
-          earned += ok ? question.points : 0;
-          if (!ok) {
-            notes.push(question.explanation);
-          }
-        } else if (question.type === 'MULTI') {
-          const picked = Array.isArray(answer) ? answer : [];
-          const hits = picked.filter((value) => question.correctIndexes.includes(value)).length;
-          const wrong = picked.length - hits;
-          const ratio = Math.max(0, (hits - wrong) / Math.max(1, question.correctIndexes.length));
-          earned += question.points * ratio;
-          if (ratio < 1) {
-            notes.push(question.explanation);
-          }
-        } else {
-          const text = typeof answer === 'string' ? answer : '';
-          // Règle affichée dans l'épreuve : une réponse non justifiée
-          // (aucune notion attendue réellement couverte) ne rapporte aucun point.
-          const covered = coverage(text, words(question.explanation).slice(0, 8));
-          const ratio = text.trim().length < 40 ? 0 : covered >= 0.25 ? covered : 0;
-          earned += question.points * ratio;
-          if (ratio < 0.7) {
-            notes.push(question.explanation);
-          }
+        const ratio = this.knowledgeRatio(question, answers[question.id]);
+        earned += question.points * ratio;
+        if (ratio < 0.7) {
+          notes.push(question.explanation);
         }
       }
       return {
@@ -368,7 +403,83 @@ export class EvaluationService {
     });
   }
 
-  /** Épreuve technique : critères réellement vérifiés, critère éliminatoire. */
+  /**
+   * Règles éliminatoires : une exigence bloquante non satisfaite invalide
+   * l'épreuve, quel que soit le score.
+   *
+   * L'écran annonçait ces invalidations (« un critère éliminatoire non
+   * satisfait invalide la tâche », « un dossier incomplet sur un critère
+   * éliminatoire est refusé », « une erreur critique invalide la
+   * soutenance ») : le correcteur ne les appliquait pas.
+   */
+  private blockingFailures(
+    method: EvaluationMethod,
+    document: EvaluationDocument,
+    answers: EvaluationAnswers,
+  ): string[] {
+    const failures: string[] = [];
+
+    if (method === 'KNOWLEDGE_TEST') {
+      for (const section of (document as KnowledgeTestDocument).sections) {
+        for (const question of section.questions) {
+          if (question.critical !== true) {
+            continue;
+          }
+          if (this.knowledgeRatio(question, answers[question.id]) < 0.7) {
+            failures.push(`Question éliminatoire non maîtrisée : ${question.prompt}`);
+          }
+        }
+      }
+    }
+
+    if (method === 'PROFESSIONAL_DOSSIER') {
+      for (const requirement of (document as ProfessionalDossierDocument).requirements) {
+        if (!requirement.mandatory) {
+          continue;
+        }
+        const text =
+          typeof answers[requirement.id] === 'string' ? String(answers[requirement.id]) : '';
+        if (text.trim().length < 30) {
+          failures.push(`Exigence obligatoire absente : ${requirement.label}`);
+        }
+      }
+    }
+
+    if (method === 'DEFENSE_INTERVIEW') {
+      for (const question of (document as DefenseInterviewDocument).questions) {
+        if (question.kind !== 'FOND') {
+          continue;
+        }
+        const text =
+          typeof answers[question.id] === 'string' ? String(answers[question.id]) : '';
+        if (this.isRedFlag(text)) {
+          failures.push(`Erreur critique sur une notion fondamentale : ${question.prompt}`);
+        }
+      }
+    }
+
+    return failures;
+  }
+
+  /**
+   * Réponse de non-maîtrise : trop courte, ou aveu d'ignorance.
+   * Le texte est normalisé (accents retirés) : « aucune idée » doit être
+   * détecté comme « je ne sais pas ».
+   */
+  private isRedFlag(text: string): boolean {
+    const flat = normalise(text);
+    return (
+      flat.trim().length < 30 ||
+      flat.includes('je ne sais pas') ||
+      flat.includes('aucune idee') ||
+      flat.includes('aucune connaissance')
+    );
+  }
+
+  /**
+   * Épreuve technique : critères réellement vérifiés, critère éliminatoire,
+   * note d'exécution et journal des commandes transmis au correcteur.
+   */
   private correctTechnicalChallenge(
     document: TechnicalChallengeDocument,
     answers: EvaluationAnswers,
@@ -378,8 +489,14 @@ export class EvaluationService {
       const checked = Array.isArray(answer) ? answer : [];
       const total = task.successCriteria.length;
       const mandatoryOk = checked.includes(0);
-      const ratio = mandatoryOk ? checked.length / Math.max(1, total) : 0;
+      const hintUsed = answers[`${task.id}::hint`] !== undefined;
+      // Les indices sont annoncés comme réduisant le score de la tâche.
+      const ratio = mandatoryOk ? (checked.length / Math.max(1, total)) * (hintUsed ? 0.9 : 1) : 0;
       const earned = task.points * ratio;
+      const note =
+        typeof answers[`${task.id}::note`] === 'string' ? String(answers[`${task.id}::note`]) : '';
+      const log =
+        typeof answers[`${task.id}::log`] === 'string' ? String(answers[`${task.id}::log`]) : '';
       return {
         id: task.id,
         label: task.title,
@@ -388,9 +505,12 @@ export class EvaluationService {
         max: task.points,
         comment: !mandatoryOk
           ? 'Critère éliminatoire non satisfait : la tâche est invalidée.'
-          : ratio >= 0.8
-            ? 'Tâche conforme, résultat reproductible.'
-            : `Critères manquants : ${task.successCriteria.filter((_, index) => !checked.includes(index)).slice(0, 2).join(' · ')}`,
+          : hintUsed
+            ? 'Tâche conforme, mais un indice a été utilisé : score réduit.'
+            : ratio >= 0.8
+              ? 'Tâche conforme, résultat reproductible.'
+              : `Critères manquants : ${task.successCriteria.filter((_, index) => !checked.includes(index)).slice(0, 2).join(' · ')}`,
+        evidence: [note, log].filter((value) => value.trim().length > 0).join('\n'),
       } satisfies CriterionResult;
     });
   }
@@ -402,10 +522,16 @@ export class EvaluationService {
   ): CriterionResult[] {
     return document.questions.map((question) => {
       const text = typeof answers[question.id] === 'string' ? String(answers[question.id]) : '';
+      // Seuil identique à celui affiché dans l'épreuve (60 caractères).
+      // En dessous, ou sans aucun thème attendu couvert, la réponse ne
+      // rapporte aucun point : une absence de raisonnement n'est pas une
+      // réponse partielle.
       const ratio =
-        text.trim().length < 50
-          ? 0.1
-          : Math.min(1, 0.3 + 0.7 * coverage(text, question.expectedThemes));
+        text.trim().length < 60
+          ? 0
+          : coverage(text, question.expectedThemes) < 0.25
+            ? 0
+            : Math.min(1, 0.3 + 0.7 * coverage(text, question.expectedThemes));
       return {
         id: question.id,
         label: question.prompt,
@@ -510,10 +636,13 @@ export class EvaluationService {
   ): CriterionResult[] {
     const results = document.questions.map((question) => {
       const text = typeof answers[question.id] === 'string' ? String(answers[question.id]) : '';
-      const redFlag = text.trim().length < 30 || /je ne sais pas|aucune ide/i.test(text);
-      const ratio = redFlag
-        ? 0
-        : Math.min(1, 0.25 + 0.75 * coverage(text, question.expectedThemes));
+      const redFlag = this.isRedFlag(text);
+      // Un fond de réponse hors sujet ne vaut pas de point : la maîtrise
+      // doit être démontrée, pas affirmée.
+      const ratio =
+        redFlag || coverage(text, question.expectedThemes) < 0.25
+          ? 0
+          : Math.min(1, 0.25 + 0.75 * coverage(text, question.expectedThemes));
       return {
         id: question.id,
         label: `${question.kind} — ${question.prompt}`,
@@ -521,7 +650,7 @@ export class EvaluationService {
         earned: Math.round(question.points * ratio * 10) / 10,
         max: question.points,
         comment: redFlag
-          ? 'Réponse insuffisante : le jury ne peut pas conclure à la maîtrise.'
+          ? `Réponse insuffisante : le jury ne peut pas conclure à la maîtrise.${question.redFlags.length > 0 ? ` Signaux attendus : ${question.redFlags.slice(0, 2).join(' · ')}.` : ''}`
           : ratio >= 0.8
             ? 'Réponse étayée, limites reconnues.'
             : 'Réponse partielle : notions attendues non explicitées.',

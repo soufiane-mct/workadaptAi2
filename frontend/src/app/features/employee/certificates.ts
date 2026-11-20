@@ -186,8 +186,8 @@ import { DataService } from '../../core/data/data.service';
 export class CertificatesPage {
   private readonly data = inject(DataService);
 
-  readonly certificates = this.data.certificates;
-  readonly issued = this.data.issuedCertificates;
+  readonly certificates = this.data.myCertificates;
+  readonly issued = this.data.myIssuedCertificates;
   readonly methodLabels = EVALUATION_METHOD_LABELS;
   readonly formatLabels = FORMAT_LABELS;
 

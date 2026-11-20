@@ -9,6 +9,7 @@ import {
 import { AuditService } from './audit.service';
 import { CollectionService } from './collection.service';
 import { NotificationService } from './notification.service';
+import { WorkflowStateService } from './workflow-state.service';
 
 const AGENT = 'Learning Evidence Agent';
 
@@ -50,6 +51,7 @@ export class StepVerificationService {
   private readonly audit = inject(AuditService);
   private readonly notifications = inject(NotificationService);
   private readonly collection = inject(CollectionService);
+  private readonly workflow = inject(WorkflowStateService);
 
   private readonly _verifications = signal<StepVerification[]>([]);
   readonly verifications = this._verifications.asReadonly();
@@ -201,35 +203,42 @@ export class StepVerificationService {
     }
 
     /* ---------------------------------------------------------- *
-     * F. Cohérence temporelle — SUSPENDU POUR LES TESTS
+     * F. Cohérence temporelle — le temps passé correspond-il au
+     *    contenu attendu ?
      *
-     * Le contrôle « le temps passé correspond-il au contenu attendu »
-     * est désactivé le temps de valider le parcours de bout en bout :
-     * une étape dont la preuve est complète est validée immédiatement,
-     * sans attendre la durée planifiée.
-     *
-     * À RÉACTIVER AVANT LA LIVRAISON : c'est ce contrôle qui empêche
-     * de valider une étape en 20 secondes.
-     * ---------------------------------------------------------- *
-     * const expected = Math.max(1, evidence.expectedMinutes);
-     * const ratioTime = evidence.durationMinutes / expected;
-     * checks.push({
-     *   weight: 10,
-     *   ratio: Math.min(1, Math.max(0, ratioTime)),
-     *   label: 'cohérence temporelle',
-     * });
-     * if (evidence.durationMinutes <= 0) {
-     *   gaps.push('Aucune durée passée sur cette étape : le travail réel n’est pas mesurable.');
-     * } else if (ratioTime < 0.3) {
-     *   gaps.push(
-     *     `Temps passé (${Math.round(evidence.durationMinutes)} min) incohérent avec le contenu attendu (${expected} min) : vérifiez que l’étape a réellement été réalisée.`,
-     *   );
-     * } else {
-     *   checked.push(
-     *     `Temps passé : ${Math.round(evidence.durationMinutes)} min pour ${expected} min attendues.`,
-     *   );
-     * }
-     */
+     * Le contrôle s'applique en mode réel. En mode démonstration, le
+     * temps est compressé (facteur ×20) : le ratio entre le temps
+     * réellement passé et la durée planifiée n'a alors aucun sens, et
+     * l'appliquer rendrait le parcours impossible à terminer. Le mode
+     * se règle explicitement dans l'écran d'administration — il n'est
+     * jamais « oublié » dans un bloc commenté.
+     * ---------------------------------------------------------- */
+    const expected = Math.max(1, evidence.expectedMinutes);
+    if (this.workflow.demoMode()) {
+      checked.push(
+        `Temps passé : ${Math.round(evidence.durationMinutes)} min (durée compressée en mode démonstration — contrôle temporel non applicable).`,
+      );
+    } else {
+      const ratioTime = evidence.durationMinutes / expected;
+      checks.push({
+        weight: 10,
+        ratio: Math.min(1, Math.max(0, ratioTime)),
+        label: 'cohérence temporelle',
+      });
+      if (evidence.durationMinutes <= 0) {
+        gaps.push(
+          'Aucune durée passée sur cette étape : le travail réel n’est pas mesurable.',
+        );
+      } else if (ratioTime < 0.3) {
+        gaps.push(
+          `Temps passé (${Math.round(evidence.durationMinutes)} min) incohérent avec le contenu attendu (${expected} min) : vérifiez que l’étape a réellement été réalisée.`,
+        );
+      } else {
+        checked.push(
+          `Temps passé : ${Math.round(evidence.durationMinutes)} min pour ${expected} min attendues.`,
+        );
+      }
+    }
 
     /* ---------------------------------------------------------- *
      * Score : moyenne pondérée des contrôles applicables.
@@ -248,7 +257,9 @@ export class StepVerificationService {
         gap.includes('Restitution écrite absente') ||
         gap.includes('preuve d’exécution est absente') ||
         gap.includes('sans sortie observable') ||
-        gap.includes('Sorties de commande identiques'),
+        gap.includes('Sorties de commande identiques') ||
+        // Une étape sans temps mesurable n'a pas été réellement réalisée.
+        gap.includes('travail réel n’est pas mesurable'),
     );
     const superficial =
       imposed.length > 0 &&

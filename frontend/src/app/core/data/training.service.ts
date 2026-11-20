@@ -20,6 +20,7 @@ import { StepVerificationService } from './step-verification.service';
 import { buildProgram } from './training/builders';
 import { BuildContext, capstoneOf, isoTimestamp, programUnits } from './training/helpers';
 import { WorkflowStateService } from './workflow-state.service';
+import { AuthService } from '../auth/auth.service';
 
 /**
  * Domaine Formation.
@@ -41,6 +42,17 @@ export class TrainingService {
   private readonly audit = inject(AuditService);
   private readonly workflow = inject(WorkflowStateService);
   private readonly stepVerification = inject(StepVerificationService);
+  private readonly auth = inject(AuthService);
+
+  /**
+   * Acteur humain d'une décision de supervision.
+   *
+   * Le journal d'audit attribue la décision à l'utilisateur authentifié :
+   * un nom figé attribuerait la décision à quelqu'un qui ne l'a pas prise.
+   */
+  private decisionActor(): string {
+    return this.auth.user()?.name ?? 'Superviseur';
+  }
 
   private readonly _requests = signal<TrainingRequest[]>([...INITIAL_TRAINING_REQUESTS]);
   private readonly _programs = signal<TrainingProgram[]>([]);
@@ -242,7 +254,7 @@ export class TrainingService {
     });
 
     this.audit.log({
-      actor: 'Ahmed El Fellah',
+      actor: this.decisionActor(),
       action: 'Validation de parcours',
       target: requestId,
       detail: note || 'Curriculum complet approuvé.',
@@ -277,7 +289,7 @@ export class TrainingService {
     });
 
     this.audit.log({
-      actor: 'Ahmed El Fellah',
+      actor: this.decisionActor(),
       action: 'Rejet de parcours',
       target: requestId,
       detail: reason.trim(),
@@ -305,6 +317,17 @@ export class TrainingService {
     }
 
     const updated = this.applyModification(program, input.removedUnitIds, input.adjustedHours);
+    // Un parcours sans aucune unité ne peut pas être suivi ni validé :
+    // la modification est refusée plutôt que de produire un curriculum vide.
+    if (programUnits(updated).length === 0) {
+      this.audit.log({
+        actor: this.decisionActor(),
+        action: 'Modification refusée',
+        target: input.requestId,
+        detail: 'Le retrait de toutes les unités est refusé : un parcours doit conserver au moins une unité.',
+      });
+      return;
+    }
     this._programs.update((programs) =>
       programs.map((item) => (item.requestId === input.requestId ? updated : item)),
     );
@@ -338,7 +361,7 @@ export class TrainingService {
     });
 
     this.audit.log({
-      actor: 'Ahmed El Fellah',
+      actor: this.decisionActor(),
       action: 'Modification de parcours',
       target: input.requestId,
       detail: `${input.removedUnitIds.length} unité(s) retirée(s), durée ${updated.estimatedHours} h. ${input.note.trim()}`,
@@ -402,8 +425,21 @@ export class TrainingService {
   }
 
   /**
-   * Termine une unité. Les minutes sont créditées réellement (temps
-   * accéléré uniquement en mode démo, jamais les conditions de fin).
+   * Parcours suspendu ?
+   *
+   * Le retrait du consentement de collecte prend effet immédiatement (CDC
+   * §12) : le diagnostic et le parcours en cours sont suspendus, sans être
+   * supprimés. La collecte, elle, continue de tourner pour la plateforme —
+   * c'est l'usage des données de l'employé qui est coupé, pas l'agent.
+   */
+  private trainingSuspended(): boolean {
+    return !this.profileService.profile().consent.collect;
+  }
+
+  /** Termine une unité. Les minutes créditées correspondent à la durée de
+   * curriculum de l'unité : le temps réel passé à l'écran est transmis à
+   * l'agent d'analyse des preuves (contrôle de cohérence temporelle), mais
+   * il ne conditionne jamais seul la fin du parcours.
    *
    * Une unité ne peut être terminée que si l'agent d'analyse des preuves a
    * validé la preuve de cette étape : cocher une case ne suffit pas.
@@ -418,6 +454,13 @@ export class TrainingService {
     const progress = this.progressFor(requestId);
     if (!request || !program || !progress || request.status !== 'IN_PROGRESS') {
       return { ok: false, message: 'Parcours non démarré.' };
+    }
+    if (this.trainingSuspended()) {
+      return {
+        ok: false,
+        message:
+          'Consentement de collecte retiré : le parcours est suspendu. Rétablissez votre consentement pour le reprendre.',
+      };
     }
 
     const units = programUnits(program);
@@ -523,6 +566,13 @@ export class TrainingService {
     const program = this.programFor(requestId);
     if (!progress || !program) {
       return { ok: false, message: 'Parcours introuvable.' };
+    }
+    if (this.trainingSuspended()) {
+      return {
+        ok: false,
+        message:
+          'Consentement de collecte retiré : le parcours est suspendu. Rétablissez votre consentement pour le reprendre.',
+      };
     }
     if (proof.trim().length < 20) {
       return { ok: false, message: 'La preuve de fin doit être substantielle (20 caractères minimum).' };
@@ -786,19 +836,83 @@ export class TrainingService {
     }
     const updated = this.filterUnits(program, removedUnitIds);
     const remaining = programUnits(updated);
-    const minutes = remaining.reduce((sum, unit) => sum + unit.minutes, 0);
-    const hours = adjustedHours && adjustedHours > 0 ? adjustedHours : Math.round((minutes / 60) * 10) / 10;
+    let minutes = remaining.reduce((sum, unit) => sum + unit.minutes, 0);
+    let scaled = updated;
+
+    // Volume ajusté par le superviseur : la durée est redistribuée sur les
+    // unités réellement conservées. Sans cette redistribution, la condition
+    // de fin (minMinutes) pourrait dépasser le temps que le parcours permet
+    // de créditer — le parcours deviendrait impossible à terminer.
+    if (adjustedHours && adjustedHours > 0) {
+      const target = Math.max(Math.round(adjustedHours * 60), remaining.length);
+      scaled = this.scaleUnits(updated, target);
+      minutes = programUnits(scaled).reduce((sum, unit) => sum + unit.minutes, 0);
+    }
+
+    const hours = Math.round((minutes / 60) * 10) / 10;
     return {
-      ...updated,
+      ...scaled,
       estimatedHours: hours,
       estimatedDays: Math.max(2, Math.round(hours / 2)),
-      studyPlan: updated.studyPlan.slice(0, Math.max(3, remaining.length)),
+      studyPlan: scaled.studyPlan.slice(0, Math.max(3, remaining.length)),
       completion: {
-        ...updated.completion,
+        ...scaled.completion,
         requiredUnits: remaining.length,
-        minMinutes: adjustedHours && adjustedHours > 0 ? Math.round(adjustedHours * 60) : minutes,
+        minMinutes: minutes,
       },
     } as TrainingProgram;
+  }
+
+  /**
+   * Redistribue une durée cible sur les unités réelles du programme.
+   *
+   * La somme des minutes unitaires devient exactement la cible : la
+   * condition de fin reste toujours atteignable, et la durée affichée au
+   * superviseur reste celle qui est réellement créditée.
+   */
+  private scaleUnits(program: TrainingProgram, targetMinutes: number): TrainingProgram {
+    const units = programUnits(program);
+    if (units.length === 0) {
+      return program;
+    }
+    const total = units.reduce((sum, unit) => sum + unit.minutes, 0);
+    if (total <= 0) {
+      return program;
+    }
+    const target = Math.max(Math.round(targetMinutes), units.length);
+    const raw = units.map((unit) => Math.max(1, Math.floor((unit.minutes / total) * target)));
+    let rest = target - raw.reduce((sum, value) => sum + value, 0);
+    const scaled = raw.map((value) => {
+      if (rest > 0) {
+        rest -= 1;
+        return value + 1;
+      }
+      return value;
+    });
+    const byId = new Map(units.map((unit, index) => [unit.id, scaled[index]]));
+    const scale = <T extends { id: string; estimatedMinutes: number }>(items: T[]): T[] =>
+      items.map((item) => ({
+        ...item,
+        estimatedMinutes: byId.get(item.id) ?? item.estimatedMinutes,
+      }));
+    switch (program.format) {
+      case 'MULTIMEDIA':
+        return { ...program, episodes: scale(program.episodes) };
+      case 'INTERACTIVE':
+        return { ...program, drillSets: scale(program.drillSets) };
+      case 'PRACTICAL':
+        return { ...program, labs: scale(program.labs) };
+      case 'PROJECT':
+        return { ...program, milestones: scale(program.milestones) };
+      case 'SIMULATION':
+        return { ...program, scenarios: scale(program.scenarios) };
+      case 'AI_TUTORED':
+        return { ...program, tutorSessions: scale(program.tutorSessions) };
+      case 'COLLABORATIVE':
+        return { ...program, sprints: scale(program.sprints) };
+      default:
+        return program;
+    }
   }
 
   private filterUnits(program: TrainingProgram, removed: string[]): TrainingProgram {

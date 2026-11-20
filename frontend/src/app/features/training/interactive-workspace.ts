@@ -71,7 +71,7 @@ import { WorkspaceBase } from './workspace-base';
 
           @if (mode() === 'cards') {
             @if (current.cards[cardIndex()]; as card) {
-              <button type="button" class="flash" (click)="flipped.update((value) => !value)">
+              <button type="button" class="flash" (click)="flipCard()">
                 <span class="flash__side">{{ flipped() ? 'Réponse' : 'Question' }}</span>
                 <strong>{{ flipped() ? card.back : card.front }}</strong>
                 <small>{{ flipped() ? 'Cliquez pour revoir la question' : 'Cliquez pour révéler' }}</small>
@@ -136,7 +136,7 @@ import { WorkspaceBase } from './workspace-base';
                 <button
                   class="btn btn--primary"
                   type="button"
-                  [disabled]="!editable() || isDone(current.id) || mastery() < current.masteryThreshold"
+                  [disabled]="!editable() || isDone(current.id) || answered() < current.drills.length || mastery() < current.masteryThreshold"
                   (click)="finish(current.id)"
                 >
                   <span class="material-symbols-outlined">fact_check</span>
@@ -358,6 +358,8 @@ export class InteractiveWorkspace extends WorkspaceBase {
   readonly flipped = signal(false);
   readonly pickedMap = signal<Record<string, number[]>>({});
   readonly revealed = signal<Record<string, boolean>>({});
+  /** Cartes effectivement retournées, par deck. */
+  readonly flippedCards = signal<Record<string, number[]>>({});
 
   readonly answered = computed(
     () => this.deck()?.drills.filter((question) => this.revealed()[question.id]).length ?? 0,
@@ -378,7 +380,30 @@ export class InteractiveWorkspace extends WorkspaceBase {
     this.flipped.set(false);
     this.pickedMap.set({});
     this.revealed.set({});
-    this.verification.set(undefined);
+  }
+
+  /**
+   * Retourne la carte courante. Une carte retournée est tracée : c'est la
+   * trace du travail réel, une carte non consultée ne peut pas être
+   * déclarée réalisée.
+   */
+  flipCard(): void {
+    const deck = this.deck();
+    if (!deck) {
+      return;
+    }
+    const index = this.cardIndex();
+    this.flipped.update((value) => !value);
+    this.flippedCards.update((map) => {
+      const done = map[deck.id] ?? [];
+      return done.includes(index) ? map : { ...map, [deck.id]: [...done, index] };
+    });
+  }
+
+  /** Une carte n'est « consultée » que si elle a été retournée au moins une fois. */
+  cardConsulted(index: number): boolean {
+    const deck = this.deck();
+    return deck ? (this.flippedCards()[deck.id] ?? []).includes(index) : false;
   }
 
   moveCard(delta: number): void {
@@ -437,9 +462,9 @@ export class InteractiveWorkspace extends WorkspaceBase {
       unitId: deckId,
       format: 'INTERACTIVE',
       kind: 'QUIZ',
-      steps: deck.cards.map((card) => ({
+      steps: deck.cards.map((card, index) => ({
         label: `Carte : ${card.front}`,
-        done: this.flipped() || this.cardIndex() > 0,
+        done: this.cardConsulted(index),
       })),
       criteria: drills.map((question) => ({
         label: question.prompt,

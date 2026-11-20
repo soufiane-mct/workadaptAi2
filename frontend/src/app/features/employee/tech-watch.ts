@@ -98,10 +98,17 @@ import { DataService } from '../../core/data/data.service';
                   <span>Source : {{ signal.source }}</span>
                   <span>{{ day(signal.at) }}</span>
                   <div class="toolbar__spacer"></div>
-                  <button class="btn btn--primary btn--small" type="button" (click)="promote(signal)">
-                    <span class="material-symbols-outlined">add_task</span>
-                    Transformer en écart
-                  </button>
+                  @if (hasGap(signal)) {
+                    <span class="wa-chip wa-chip--neutral" title="Un écart existe déjà sur cette compétence">
+                      <span class="material-symbols-outlined">check_circle</span>
+                      Écart déjà créé
+                    </span>
+                  } @else {
+                    <button class="btn btn--primary btn--small" type="button" (click)="promote(signal)">
+                      <span class="material-symbols-outlined">add_task</span>
+                      Transformer en écart
+                    </button>
+                  }
                   <button class="btn btn--ghost btn--small" type="button" (click)="dismiss(signal)">
                     Écarter
                   </button>
@@ -250,6 +257,15 @@ export class TechWatchPage {
           gap.observedFacts.some((fact) => fact.source === 'TECH_WATCH'),
         ).length,
   );
+
+  /**
+   * Un écart existe déjà sur cette compétence : proposer de le transformer
+   * à nouveau mènerait à un cul-de-sac. L'agent de veille refuse la
+   * conversion et le signale.
+   */
+  hasGap(signal: TechSignal): boolean {
+    return this.data.gapService.bySkill(signal.skillCode) !== undefined;
+  }
 
   promote(signal: TechSignal): void {
     const result = this.data.promoteSignal(signal.id);

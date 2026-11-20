@@ -159,6 +159,42 @@ export class DataService {
   readonly certificates = this.certificationService.certificates;
   readonly issuedCertificates = this.certificationService.issued;
 
+  /**
+   * Périmètre de l'employé connecté.
+   *
+   * Les écrans personnels (« Mes formations », « Mes certificats ») ne
+   * doivent jamais exposer le parcours d'un autre employé : les listes
+   * sont filtrées par l'identifiant métier de l'utilisateur connecté.
+   * Les vues superviseur/RH continuent d'utiliser les agrégats globaux.
+   */
+  readonly myRequests = computed(() => {
+    const employeeId = this.profileService.employeeId();
+    return this.trainingService
+      .requests()
+      .filter((request) => request.employeeId === employeeId);
+  });
+  readonly myPendingRequests = computed(() =>
+    this.myRequests().filter((request) => request.status === 'PENDING'),
+  );
+  readonly myTrainingInProgress = computed(() =>
+    this.myRequests().filter((request) => request.status === 'IN_PROGRESS'),
+  );
+  readonly myCompletedTrainings = computed(() =>
+    this.myRequests().filter((request) => request.status === 'COMPLETED'),
+  );
+  readonly myCertificates = computed(() => {
+    const employeeId = this.profileService.employeeId();
+    return this.certificationService
+      .certificates()
+      .filter((certificate) => certificate.employeeId === employeeId);
+  });
+  readonly myIssuedCertificates = computed(() => {
+    const employeeId = this.profileService.employeeId();
+    return this.certificationService
+      .issued()
+      .filter((certificate) => certificate.employeeId === employeeId);
+  });
+
   /* ---------------------------------------------------------------- *
    * Collecte, veille, notifications, audit
    * ---------------------------------------------------------------- */
@@ -241,9 +277,48 @@ export class DataService {
     return this.auditService.forTarget(target);
   }
 
+  /**
+   * Politique de consentement : partage au superviseur.
+   *
+   * Le retrait du consentement prend effet immédiatement (CDC §12) : les
+   * projections nominatives vers le superviseur (suivi, résultats,
+   * certificats) sont suspendues pour l'employé concerné. Le workflow de
+   * validation du curriculum reste inchangé : le superviseur doit pouvoir
+   * statuer sur la demande qu'il reçoit.
+   */
+  private readonly supervisorBlocked = computed(() => {
+    const profile = this.profile();
+    return profile.consent.shareWithSupervisor
+      ? new Set<string>()
+      : new Set<string>([profile.employeeId]);
+  });
+
+  /** Parcours en cours visibles par le superviseur (consentement respecté). */
+  readonly supervisorInProgress = computed(() => {
+    const blocked = this.supervisorBlocked();
+    return this.trainingInProgress().filter((request) => !blocked.has(request.employeeId));
+  });
+
+  /** Rapports d'évaluation visibles par le superviseur (consentement respecté). */
+  readonly supervisorReports = computed(() => {
+    const blocked = this.supervisorBlocked();
+    return this.evaluationReports().filter(
+      (report) => !blocked.has(this.requestById(report.requestId)?.employeeId ?? ''),
+    );
+  });
+
+  /** Certificats visibles par le superviseur (consentement respecté). */
+  readonly supervisorCertificates = computed(() => {
+    const blocked = this.supervisorBlocked();
+    return this.certificates().filter((certificate) => !blocked.has(certificate.employeeId));
+  });
+
   /** Suivi agrégé des formations, sans donnée nominative côté RH. */
-  readonly followUps = computed<TrainingFollowUp[]>(() =>
-    this.requests().map((request) => {
+  readonly followUps = computed<TrainingFollowUp[]>(() => {
+    const blocked = this.supervisorBlocked();
+    return this.requests()
+      .filter((request) => !blocked.has(request.employeeId))
+      .map((request) => {
       const program = this.programFor(request.id);
       const progress = this.progressFor(request.id);
       const done = progress?.units.filter((unit) => unit.status === 'DONE').length ?? 0;
@@ -272,8 +347,8 @@ export class DataService {
         lastEvaluation: report?.score,
         updatedAt: progress?.lastActivityAt ?? request.requestedAt,
       } satisfies TrainingFollowUp;
-    }),
-  );
+      });
+  });
 
   /* ---------------------------------------------------------------- *
    * Actions — chaque domaine reste maître de sa règle
@@ -368,6 +443,15 @@ export class DataService {
 
   saveEvaluationAnswers(requestId: string, answers: EvaluationAnswers): void {
     this.evaluationService.saveAnswers(requestId, answers);
+  }
+
+  /** Brouillon de réponses en cours de passation (conservé à la navigation). */
+  evaluationDraft(evaluationId: string): EvaluationAnswers {
+    return this.evaluationService.draft(evaluationId);
+  }
+
+  saveEvaluationDraft(evaluationId: string, answers: EvaluationAnswers): void {
+    this.evaluationService.saveDraft(evaluationId, answers);
   }
 
   submitEvaluation(requestId: string, answers: EvaluationAnswers): EvaluationReport | undefined {

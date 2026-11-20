@@ -1,9 +1,18 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  OnInit,
+  output,
+  signal,
+} from '@angular/core';
 import {
   CaseAnalysisDocument,
   EvaluationAnswers,
   EvaluationRecord,
 } from '../../core/models';
+import { textAnswers } from './answers';
 
 @Component({
   selector: 'wa-case-analysis',
@@ -13,7 +22,7 @@ import {
         <div>
           <span class="case__eyebrow">Dossier d’analyse</span>
           <strong>{{ doc().title }}</strong>
-          <small>{{ doc().durationMinutes }} minutes · {{ doc().questions.length }} questions</small>
+          <small>Durée indicative {{ doc().durationMinutes }} minutes · {{ doc().questions.length }} questions</small>
         </div>
         <span class="eval-badge"><span class="material-symbols-outlined">folder_open</span>Cas réel anonymisé</span>
       </header>
@@ -78,6 +87,7 @@ import {
               <textarea
                 class="wa-textarea"
                 rows="5"
+                [attr.aria-label]="'Réponse à la question : ' + question.prompt"
                 [value]="answer(question.id)"
                 (input)="setAnswer(question.id, $any($event.target).value)"
                 placeholder="Structurez : faits observés → hypothèses → décision → vérification."
@@ -318,13 +328,25 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CaseAnalysis {
+export class CaseAnalysis implements OnInit {
   readonly record = input.required<EvaluationRecord>();
+  /** Brouillon de réponses déjà saisies (conservé à la navigation). */
+  readonly draft = input<EvaluationAnswers>({});
+  /** Émis à chaque modification : le parent conserve le brouillon. */
+  readonly changed = output<EvaluationAnswers>();
   readonly submitted = output<EvaluationAnswers>();
 
   readonly doc = computed(() => this.record().document as CaseAnalysisDocument);
   private readonly answers = signal<Record<string, string>>({});
   readonly Math = Math;
+
+  /**
+   * Réhydratation : quitter l'épreuve puis y revenir ne doit pas effacer
+   * les analyses déjà rédigées.
+   */
+  ngOnInit(): void {
+    this.answers.set(textAnswers(this.draft()));
+  }
 
   answer(questionId: string): string {
     return this.answers()[questionId] ?? '';
@@ -332,6 +354,16 @@ export class CaseAnalysis {
 
   setAnswer(questionId: string, value: string): void {
     this.answers.update((map) => ({ ...map, [questionId]: value }));
+    this.changed.emit(this.currentAnswers());
+  }
+
+  /** Réponses courantes, dans le format attendu par le correcteur. */
+  currentAnswers(): EvaluationAnswers {
+    const answers: EvaluationAnswers = {};
+    for (const question of this.doc().questions) {
+      answers[question.id] = this.answer(question.id);
+    }
+    return answers;
   }
 
   isDone(questionId: string): boolean {
@@ -346,10 +378,6 @@ export class CaseAnalysis {
     if (this.doneCount() < this.doc().questions.length) {
       return;
     }
-    const answers: EvaluationAnswers = {};
-    for (const question of this.doc().questions) {
-      answers[question.id] = this.answer(question.id);
-    }
-    this.submitted.emit(answers);
+    this.submitted.emit(this.currentAnswers());
   }
 }

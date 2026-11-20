@@ -135,8 +135,12 @@ export class CollectionService {
   /**
    * Collecte quotidienne simulée. Elle tourne aussi pendant une formation :
    * les nouveaux écarts sont alors mis en attente.
+   *
+   * `silent` est utilisé par la collecte automatique : l'exécution est
+   * tracée, mais on ne notifie que les écarts réellement nouveaux, sinon
+   * l'écran produirait une notification par écart à chaque passage.
    */
-  runDailyCollection(options: { simulateFailure?: boolean } = {}): CollectionRun {
+  runDailyCollection(options: { simulateFailure?: boolean; silent?: boolean } = {}): CollectionRun {
     this.workflow.setCollectionRunning(true);
     const sources: CollectionSource[] = ['COLLECTOR', 'CONNECTED_APP', 'TECH_WATCH'];
 
@@ -214,18 +218,40 @@ export class CollectionService {
     ];
 
     const picked = pool.slice(0, 3);
-    const created = picked.map((event, index) => this.toEvent(event, index));
-    this._events.update((current) => [...created, ...current]);
-    this.touchSources(created.map((event) => event.source));
+    // Consentement de collecte retiré : la collecte, elle, continue de
+    // tourner (elle ne s'arrête jamais), mais elle ne collecte plus rien
+    // pour un employé qui a retiré son consentement. L'exécution reste
+    // tracée : le refus est visible, il n'est pas silencieux.
+    const consent = this.profileService.profile().consent.collect;
+    const created = consent
+      ? picked.map((event, index) => this.toEvent(event, index))
+      : [];
+    if (consent) {
+      this._events.update((current) => [...created, ...current]);
+      this.touchSources(created.map((event) => event.source));
+    }
 
-    const gaps = this.gapService.detectFromSkills(
-      this.profileService.skills(),
-      this.workflow.hasActiveTraining(),
+    const knownBefore = new Map(
+      this.gapService.gaps().map((gap) => [gap.id, gap.status] as const),
+    );
+    const gaps = consent
+      ? this.gapService.detectFromSkills(
+          this.profileService.skills(),
+          this.workflow.hasActiveTraining(),
+        )
+      : [];
+    // Seuls les écarts réellement nouveaux (ou dont le statut a changé)
+    // déclenchent une notification.
+    const notifiable = gaps.filter(
+      (gap) => knownBefore.get(gap.id) !== gap.status,
     );
 
     const run = this.pushRun('DAILY', created, gaps, sources, { status: 'SUCCESS' });
 
-    for (const gap of gaps) {
+    for (const gap of notifiable) {
+      if (options.silent) {
+        continue;
+      }
       this.notifications.notify({
         type: gap.status === 'EN_ATTENTE' ? 'GAP_QUEUED' : 'GAP_DETECTED',
         title:
@@ -246,19 +272,76 @@ export class CollectionService {
       actor: 'Data Collection Agent',
       action: 'Collecte quotidienne',
       target: run.id,
-      detail: `${created.length} événement(s), ${gaps.length} nouvel(aux) écart(s).`,
+      detail: consent
+        ? `${created.length} événement(s), ${gaps.length} nouvel(aux) écart(s).`
+        : 'Consentement de collecte retiré : aucun événement enregistré pour cet employé.',
     });
 
     this.workflow.setCollectionRunning(false);
     return run;
   }
 
-  /** Reprise après échec : ne rejoue que les sources concernées. */
+  /**
+   * Reprise après échec : ne rejoue que les sources concernées.
+   */
   retryLastFailure(): CollectionRun {
     this._sources.update((items) =>
       items.map((item) => (item.code === 'COLLECTOR' ? { ...item, status: 'CONNECTED' } : item)),
     );
     return this.runDailyCollection();
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Collecte permanente : planification automatique
+   * ---------------------------------------------------------------- */
+
+  /**
+   * Cadence de la collecte automatique. La collecte est permanente (CDC) :
+   * elle ne dépend pas du clic de l'utilisateur. Le frontend simule ici le
+   * déclencheur que le collector / le backend assurance en production.
+   */
+  static readonly AUTO_INTERVAL_MINUTES = 3;
+
+  private readonly _autoCollect = signal(true);
+  private readonly _nextAutoRunAt = signal(
+    Date.now() + CollectionService.AUTO_INTERVAL_MINUTES * 60_000,
+  );
+  private autoTimer: ReturnType<typeof setInterval> | undefined;
+
+  /** La collecte automatique est active : elle ne s'arrête jamais. */
+  readonly autoCollect = this._autoCollect.asReadonly();
+  /** Horodatage du prochain passage automatique. */
+  readonly nextAutoRunAt = this._nextAutoRunAt.asReadonly();
+  readonly autoIntervalMinutes = CollectionService.AUTO_INTERVAL_MINUTES;
+
+  /**
+   * Démarre la planification automatique. Appelé par le shell à l'ouverture
+   * de l'application : la collecte tourne même si personne ne clique.
+   */
+  startAutoCollection(): void {
+    if (this.autoTimer) {
+      return;
+    }
+    this.autoTimer = setInterval(() => this.tickAutoCollection(), 15_000);
+  }
+
+  /** Arrête la planification (déconnexion, destruction de l'application). */
+  stopAutoCollection(): void {
+    if (this.autoTimer) {
+      clearInterval(this.autoTimer);
+      this.autoTimer = undefined;
+    }
+  }
+
+  private tickAutoCollection(): void {
+    if (!this._autoCollect()) {
+      return;
+    }
+    if (Date.now() < this._nextAutoRunAt()) {
+      return;
+    }
+    this._nextAutoRunAt.set(Date.now() + CollectionService.AUTO_INTERVAL_MINUTES * 60_000);
+    this.runDailyCollection({ silent: true });
   }
 
   /**

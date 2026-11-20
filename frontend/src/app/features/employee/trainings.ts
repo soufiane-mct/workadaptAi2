@@ -203,11 +203,11 @@ import { DataService } from '../../core/data/data.service';
 export class TrainingsPage {
   private readonly data = inject(DataService);
 
-  readonly requests = this.data.requests;
-  readonly pending = this.data.pendingRequests;
-  readonly inProgress = this.data.trainingInProgress;
-  readonly completed = this.data.completedTrainings;
-  readonly certificates = this.data.certificates;
+  readonly requests = this.data.myRequests;
+  readonly pending = this.data.myPendingRequests;
+  readonly inProgress = this.data.myTrainingInProgress;
+  readonly completed = this.data.myCompletedTrainings;
+  readonly certificates = this.data.myCertificates;
   readonly statusLabels = TRAINING_REQUEST_STATUS_LABELS;
   readonly formatLabels = FORMAT_LABELS;
 

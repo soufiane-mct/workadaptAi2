@@ -1,5 +1,5 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { map } from 'rxjs';
@@ -26,11 +26,21 @@ interface NavGroup {
   styleUrl: './shell.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Shell {
+export class Shell implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly data = inject(DataService);
   private readonly router = inject(Router);
   private readonly breakpoint = inject(BreakpointObserver);
+
+  ngOnInit(): void {
+    // La collecte est permanente (CDC) : elle tourne dès que l'application
+    // est ouverte, sans dépendre d'un clic sur un bouton.
+    this.data.collectionService.startAutoCollection();
+  }
+
+  ngOnDestroy(): void {
+    this.data.collectionService.stopAutoCollection();
+  }
 
   readonly user = this.auth.user;
   readonly roleLabel = computed(() => {
@@ -70,6 +80,9 @@ export class Shell {
     if (role === 'RH') {
       return [
         {
+          // Vues RH strictement agrégées : aucune identité, aucun journal
+          // nominatif, aucun annuaire. Ces écrans sont réservés à
+          // l'administrateur.
           title: 'Pilotage RH',
           items: [
             { label: 'Vue d’ensemble', icon: 'insights', path: '/app/rh' },
@@ -77,8 +90,6 @@ export class Shell {
             { label: 'Tendances', icon: 'trending_up', path: '/app/rh/tendances' },
             { label: 'Rapports', icon: 'summarize', path: '/app/rh/rapports' },
             { label: 'Certifications', icon: 'workspace_premium', path: '/app/rh/certifications' },
-            { label: 'Audit', icon: 'history', path: '/app/rh/audit' },
-            { label: 'Utilisateurs', icon: 'manage_accounts', path: '/app/rh/utilisateurs' },
           ],
         },
         {
@@ -97,7 +108,8 @@ export class Shell {
           items: [
             { label: 'Vue système', icon: 'settings', path: '/app/admin' },
             { label: 'Agents IA', icon: 'smart_toy', path: '/app/agents' },
-            { label: 'Audit', icon: 'history', path: '/app/rh/audit' },
+            { label: 'Journal d’audit', icon: 'history', path: '/app/rh/audit' },
+            { label: 'Utilisateurs', icon: 'manage_accounts', path: '/app/rh/utilisateurs' },
           ],
         },
         {

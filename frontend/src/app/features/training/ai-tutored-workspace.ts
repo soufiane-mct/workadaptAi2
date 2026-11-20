@@ -462,7 +462,6 @@ export class AiTutoredWorkspace extends WorkspaceBase {
   openSession(unitId: string): void {
     this.select(unitId);
     this.resetChat();
-    this.verification.set(undefined);
   }
 
   toggleLevels(): void {
@@ -511,12 +510,23 @@ export class AiTutoredWorkspace extends WorkspaceBase {
     return normalise(this.teachBack()).includes(normalise(keyword).slice(0, 6));
   }
 
+  /**
+   * La session n'est validée que si l exchanges, l'exercice et le teach-back
+   * sont là : sans cela l'agent ne peut pas vérifier le travail réel.
+   */
   canFinish(session: TutorSession): boolean {
     if (!this.editable() || this.isDone(session.id)) {
       return false;
     }
     const covered = session.teachBack.keywords.filter((keyword) => this.hasKeyword(keyword)).length;
-    return this.teachBack().trim().length >= 60 && covered >= Math.ceil(session.teachBack.keywords.length * 0.7);
+    const hasExercise = this.exercise().trim().length >= 30;
+    const hasExchange = this.messages().length > 1;
+    return (
+      hasExercise &&
+      hasExchange &&
+      this.teachBack().trim().length >= 60 &&
+      covered >= Math.ceil(session.teachBack.keywords.length * 0.7)
+    );
   }
 
   /**
@@ -541,20 +551,30 @@ export class AiTutoredWorkspace extends WorkspaceBase {
       format: 'AI_TUTORED',
       kind: 'TEXTE',
       steps: [
-        { label: 'Exercice réalisé', done: this.exercise().trim().length >= 30 },
+        {
+          label: 'Exercice réalisé',
+          done: this.exercise().trim().length >= 30,
+          detail: this.exercise(),
+        },
         {
           label: 'Notions du teach-back couvertes',
           done: this.keywordCount() === session.teachBack.keywords.length,
           detail: this.teachBack(),
         },
-        { label: 'Échanges avec le tuteur', done: this.messages().length > 1 },
+        {
+          label: 'Échanges avec le tuteur',
+          done: this.messages().length > 1,
+          detail: dialogue,
+        },
       ],
       criteria: session.teachBack.keywords.map((keyword) => ({
         label: keyword,
         done: this.hasKeyword(keyword),
         detail: this.teachBack(),
       })),
-      narrative: this.teachBack(),
+      // La restitution contient le dialogue et le teach-back : l'agent
+      // vérifie ce qui a réellement été produit, pas un simple booléen.
+      narrative: `${dialogue}\n\nTeach-back : ${this.teachBack()}`,
       durationMinutes: this.minutesOn(session.id),
       expectedMinutes: session.estimatedMinutes,
     };

@@ -177,18 +177,11 @@ import { KpiCard } from '../../shared/ui/kpi-card';
                   <small>Volumes par compétence et méthode</small>
                 </div>
               </a>
-              <a class="quick__item" routerLink="/app/rh/audit">
-                <span class="material-symbols-outlined">history</span>
+              <a class="quick__item" routerLink="/app/rh/rapports">
+                <span class="material-symbols-outlined">summarize</span>
                 <div>
-                  <strong>Journal d’audit</strong>
-                  <small>Décisions et accès tracés</small>
-                </div>
-              </a>
-              <a class="quick__item" routerLink="/app/rh/utilisateurs">
-                <span class="material-symbols-outlined">manage_accounts</span>
-                <div>
-                  <strong>Utilisateurs</strong>
-                  <small>Identités et rôles, sans compétences</small>
+                  <strong>Rapports et exports</strong>
+                  <small>Exports simulés, agrégés et étiquetés</small>
                 </div>
               </a>
             </div>

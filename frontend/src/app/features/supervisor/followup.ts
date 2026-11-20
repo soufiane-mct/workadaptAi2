@@ -21,8 +21,8 @@ const STATUS_LABELS: Record<TrainingFollowUpStatus, string> = {
         <div>
           <h1>Suivi des formations</h1>
           <p>
-            Suivi opérationnel, pas un tableau de sanction. On regarde le temps réellement
-            investi, les unités terminées et le résultat d’évaluation — jamais le nombre de clics.
+            Suivi opérationnel, pas un tableau de sanction. On regarde le temps de curriculum
+            validé, les unités terminées et le résultat d’évaluation — jamais le nombre de clics.
           </p>
         </div>
         <div class="page-head__actions">
@@ -50,9 +50,9 @@ const STATUS_LABELS: Record<TrainingFollowUpStatus, string> = {
           <small>Remédiation créée automatiquement</small>
         </div>
         <div class="stat">
-          <span>Heures investies</span>
+          <span>Heures de formation</span>
           <strong>{{ totalHours() }} h</strong>
-          <small>Temps crédité par unité terminée</small>
+          <small>Temps de curriculum validé par unité terminée</small>
         </div>
       </div>
 
@@ -78,7 +78,7 @@ const STATUS_LABELS: Record<TrainingFollowUpStatus, string> = {
                 <th>Format</th>
                 <th>Avancement</th>
                 <th>Unités</th>
-                <th>Temps</th>
+                <th>Temps validé</th>
                 <th>Dernière évaluation</th>
                 <th>Statut</th>
                 <th></th>
@@ -131,7 +131,10 @@ const STATUS_LABELS: Record<TrainingFollowUpStatus, string> = {
             <h3 class="sub">Ce qui compte</h3>
             <ul class="bullets">
               <li>Le nombre d’unités réellement terminées, pas le temps passé à l’écran.</li>
-              <li>Le temps crédité, qui doit atteindre la durée minimale de la formation.</li>
+              <li>
+                Le temps de curriculum validé par l’agent, qui doit atteindre la durée minimale
+                de la formation.
+              </li>
               <li>La preuve de fin, propre au format.</li>
               <li>Le résultat d’évaluation, seule preuve de maîtrise.</li>
             </ul>

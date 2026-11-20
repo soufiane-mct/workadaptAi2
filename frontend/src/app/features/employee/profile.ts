@@ -178,7 +178,7 @@ import { SkillBar } from '../../shared/ui/skill-bar';
                   <strong>Collecte permanente</strong><br />
                   <span class="wa-small wa-muted">
                     Nécessaire au diagnostic. Sans ce consentement, aucun écart ne peut être
-                    détecté ni mis à jour.
+                    détecté ni mis à jour, et le parcours en cours est suspendu.
                   </span>
                 </span>
               </label>
@@ -187,8 +187,10 @@ import { SkillBar } from '../../shared/ui/skill-bar';
                 <span>
                   <strong>Partage avec le superviseur</strong><br />
                   <span class="wa-small wa-muted">
-                    Permet la validation des parcours. Les données RH restent agrégées et non
-                    nominatives.
+                    Permet à votre superviseur de suivre votre progression et vos résultats.
+                    Sans ce consentement, il ne voit plus votre parcours ni vos résultats — la
+                    validation de la demande reste possible. Les données RH restent agrégées
+                    et non nominatives.
                   </span>
                 </span>
               </label>

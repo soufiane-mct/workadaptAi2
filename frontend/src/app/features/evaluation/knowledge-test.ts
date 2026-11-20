@@ -1,10 +1,19 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  OnInit,
+  output,
+  signal,
+} from '@angular/core';
 import {
   EvaluationAnswers,
   EvaluationRecord,
   ExamQuestion,
   KnowledgeTestDocument,
 } from '../../core/models';
+import { choiceAnswers, textAnswers } from './answers';
 
 @Component({
   selector: 'wa-knowledge-test',
@@ -20,14 +29,14 @@ import {
         </div>
         <div class="exam__clock">
           <span class="material-symbols-outlined">timer</span>
-          {{ doc().durationMinutes }} min
+          Durée indicative {{ doc().durationMinutes }} min
         </div>
       </header>
 
       <div class="exam__body">
         <aside class="sheet">
           <p class="sheet__title">Feuille de réponses</p>
-          @for (section of doc().sections; track section.id) {
+          @for (section of doc().sections; track section.id; let sIndex = $index) {
             <div class="sheet__section">
               <span class="sheet__label">{{ section.title }}</span>
               <div class="sheet__grid">
@@ -37,10 +46,10 @@ import {
                     class="sheet__cell"
                     [class.sheet__cell--done]="isAnswered(question)"
                     [class.sheet__cell--active]="focus() === question.id"
-                    (click)="focus.set(question.id)"
-                    [attr.aria-label]="'Question ' + (index + 1)"
+                    (click)="goTo(question.id)"
+                    [attr.aria-label]="'Question ' + globalNumber(sIndex, index) + ' — ' + section.title"
                   >
-                    {{ index + 1 }}
+                    {{ globalNumber(sIndex, index) }}
                   </button>
                 }
               </div>
@@ -72,6 +81,7 @@ import {
               @for (question of section.questions; track question.id; let qIndex = $index) {
                 <article
                   class="question"
+                  [id]="'question-' + question.id"
                   [class.question--critical]="question.critical"
                   [class.question--focus]="focus() === question.id"
                 >
@@ -89,6 +99,7 @@ import {
                     <textarea
                       class="wa-textarea"
                       rows="4"
+                      [attr.aria-label]="'Réponse à la question ' + (sIndex + 1) + '.' + (qIndex + 1) + ' : ' + question.prompt"
                       [value]="text(question.id)"
                       (input)="setText(question.id, $any($event.target).value)"
                       placeholder="Réponse argumentée. Le correcteur vérifie les notions clés, pas la formulation."
@@ -101,6 +112,7 @@ import {
                           type="button"
                           class="answer"
                           [class.answer--on]="isPicked(question, oIndex)"
+                          [attr.aria-pressed]="isPicked(question, oIndex)"
                           (click)="pick(question, oIndex)"
                         >
                           <span class="answer__mark">
@@ -406,8 +418,12 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class KnowledgeTest {
+export class KnowledgeTest implements OnInit {
   readonly record = input.required<EvaluationRecord>();
+  /** Brouillon de réponses déjà saisies (conservé à la navigation). */
+  readonly draft = input<EvaluationAnswers>({});
+  /** Émis à chaque modification : le parent conserve le brouillon. */
+  readonly changed = output<EvaluationAnswers>();
   readonly submitted = output<EvaluationAnswers>();
 
   readonly doc = computed(() => this.record().document as KnowledgeTestDocument);
@@ -415,6 +431,32 @@ export class KnowledgeTest {
 
   private readonly picks = signal<Record<string, number[]>>({});
   private readonly texts = signal<Record<string, string>>({});
+
+  /**
+   * Réhydratation : quitter l'épreuve puis y revenir ne doit pas effacer
+   * les réponses déjà données.
+   */
+  ngOnInit(): void {
+    const saved = this.draft();
+    this.picks.set(choiceAnswers(saved));
+    this.texts.set(textAnswers(saved));
+  }
+
+  /** Réponses courantes, dans le format attendu par le correcteur. */
+  currentAnswers(): EvaluationAnswers {
+    const answers: EvaluationAnswers = {};
+    for (const question of this.doc().sections.flatMap((section) => section.questions)) {
+      answers[question.id] =
+        question.type === 'OPEN' || question.type === 'TECHNICAL'
+          ? this.text(question.id)
+          : this.picks()[question.id] ?? [];
+    }
+    return answers;
+  }
+
+  private emitChange(): void {
+    this.changed.emit(this.currentAnswers());
+  }
 
   readonly questionCount = computed(() =>
     this.doc().sections.reduce((sum, section) => sum + section.questions.length, 0),
@@ -435,6 +477,7 @@ export class KnowledgeTest {
 
   setText(questionId: string, value: string): void {
     this.texts.update((map) => ({ ...map, [questionId]: value }));
+    this.emitChange();
   }
 
   isPicked(question: ExamQuestion, index: number): boolean {
@@ -454,6 +497,7 @@ export class KnowledgeTest {
       }
       return { ...map, [question.id]: [index] };
     });
+    this.emitChange();
   }
 
   isAnswered(question: ExamQuestion): boolean {
@@ -461,6 +505,35 @@ export class KnowledgeTest {
       return this.text(question.id).trim().length >= 40;
     }
     return (this.picks()[question.id] ?? []).length > 0;
+  }
+
+  /**
+   * Numéro global de la question dans l'épreuve.
+   *
+   * La feuille de réponses et le corps du sujet utilisent la même
+   * numérotation : sans cela, le numéro affiché dans la feuille ne
+   * correspondait à aucun repère lisible dans le sujet.
+   */
+  globalNumber(sectionIndex: number, questionIndex: number): number {
+    const sections = this.doc().sections;
+    let offset = 0;
+    for (let index = 0; index < sectionIndex; index += 1) {
+      offset += sections[index]?.questions.length ?? 0;
+    }
+    return offset + questionIndex + 1;
+  }
+
+  /**
+   * Navigue vers la question : la feuille de réponses doit déplacer le
+   * focus, sinon le clic semble sans effet.
+   */
+  goTo(questionId: string): void {
+    this.focus.set(questionId);
+    if (typeof document === 'undefined') {
+      return;
+    }
+    const target = document.getElementById(`question-${questionId}`);
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   letter(index: number): string {
@@ -488,13 +561,6 @@ export class KnowledgeTest {
     if (this.missingCount() > 0) {
       return;
     }
-    const answers: EvaluationAnswers = {};
-    for (const question of this.doc().sections.flatMap((section) => section.questions)) {
-      answers[question.id] =
-        question.type === 'OPEN' || question.type === 'TECHNICAL'
-          ? this.text(question.id)
-          : this.picks()[question.id] ?? [];
-    }
-    this.submitted.emit(answers);
+    this.submitted.emit(this.currentAnswers());
   }
 }

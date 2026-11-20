@@ -432,7 +432,6 @@ export class CollaborativeWorkspace extends WorkspaceBase {
 
   openSprint(unitId: string): void {
     this.select(unitId);
-    this.verification.set(undefined);
   }
 
   isMine(assignee: string): boolean {

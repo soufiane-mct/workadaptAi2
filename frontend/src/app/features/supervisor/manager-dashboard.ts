@@ -343,9 +343,9 @@ export class ManagerDashboard {
   private readonly data = inject(DataService);
 
   readonly pending = this.data.pendingRequests;
-  readonly inProgress = this.data.trainingInProgress;
+  readonly inProgress = this.data.supervisorInProgress;
   readonly reports = computed(() =>
-    [...this.data.evaluationReports()].sort((a, b) => b.at.localeCompare(a.at)),
+    [...this.data.supervisorReports()].sort((a, b) => b.at.localeCompare(a.at)),
   );
   readonly queued = this.data.queuedGaps;
   readonly team = computed(() => this.data.team);

@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import {
   EVALUATION_METHOD_INFO,
   EVALUATION_METHOD_LABELS,
+  EVALUATION_STATUS_LABELS,
   EVALUATION_METHODS,
   EvaluationAnswers,
   EvaluationMethod,
@@ -15,6 +16,9 @@ import { DefenseInterview } from './defense-interview';
 import { KnowledgeTest } from './knowledge-test';
 import { ProfessionalDossier } from './professional-dossier';
 import { TechnicalChallenge } from './technical-challenge';
+
+/** Réponses vides : référence stable, évite de recréer un objet à chaque lecture. */
+const EMPTY_ANSWERS: EvaluationAnswers = {};
 
 const ACCENTS: Record<EvaluationMethod, { accent: string; soft: string; head: string }> = {
   KNOWLEDGE_TEST: {
@@ -258,25 +262,52 @@ const ACCENTS: Record<EvaluationMethod, { accent: string; soft: string; head: st
         } @else if (rec.status === 'EN_COURS') {
           @switch (rec.method) {
             @case ('KNOWLEDGE_TEST') {
-              <wa-knowledge-test [record]="rec" (submitted)="submit($event)" />
+              <wa-knowledge-test
+                [record]="rec"
+                [draft]="draft()"
+                (changed)="saveDraft(rec.id, $event)"
+                (submitted)="submit($event)"
+              />
             }
             @case ('TECHNICAL_CHALLENGE') {
-              <wa-technical-challenge [record]="rec" (submitted)="submit($event)" />
+              <wa-technical-challenge
+                [record]="rec"
+                [draft]="draft()"
+                (changed)="saveDraft(rec.id, $event)"
+                (submitted)="submit($event)"
+              />
             }
             @case ('CASE_ANALYSIS') {
-              <wa-case-analysis [record]="rec" (submitted)="submit($event)" />
+              <wa-case-analysis
+                [record]="rec"
+                [draft]="draft()"
+                (changed)="saveDraft(rec.id, $event)"
+                (submitted)="submit($event)"
+              />
             }
             @case ('PROFESSIONAL_DOSSIER') {
-              <wa-professional-dossier [record]="rec" (submitted)="submit($event)" />
+              <wa-professional-dossier
+                [record]="rec"
+                [draft]="draft()"
+                (changed)="saveDraft(rec.id, $event)"
+                (submitted)="submit($event)"
+              />
             }
             @case ('DEFENSE_INTERVIEW') {
-              <wa-defense-interview [record]="rec" (submitted)="submit($event)" />
+              <wa-defense-interview
+                [record]="rec"
+                [draft]="draft()"
+                (changed)="saveDraft(rec.id, $event)"
+                (submitted)="submit($event)"
+              />
             }
           }
         } @else {
           <section class="eval-panel">
             <h2>Évaluation en cours de traitement</h2>
-            <p class="eval-panel__sub">Statut : {{ rec.status }}. Rechargez la page dans un instant.</p>
+            <p class="eval-panel__sub">
+              Statut : {{ statusLabels[rec.status] }}. Rechargez la page dans un instant.
+            </p>
           </section>
         }
       } @else {
@@ -284,7 +315,8 @@ const ACCENTS: Record<EvaluationMethod, { accent: string; soft: string; head: st
           <h2>Choisissez votre méthode d’évaluation</h2>
           <p class="eval-panel__sub">
             Cinq instruments réellement différents. Le choix vous appartient : il engage le type
-            de preuve que vous produisez. Aucune méthode ne réutilise le contenu de la formation.
+            de preuve que vous produisez. Chaque épreuve est contextualisée à partir du parcours
+            réellement suivi, avec son propre document, sa passation et sa correction.
           </p>
           <div class="methods">
             @for (method of methods; track method) {
@@ -381,12 +413,23 @@ export class EvaluationWorkspace {
     const record = this.record();
     return record ? this.data.reportFor(record.id) : undefined;
   });
+  /**
+   * Brouillon de réponses de l'épreuve en cours.
+   *
+   * Les réponses saisies sont conservées au fil de la navigation : quitter
+   * l'épreuve puis y revenir ne doit pas effacer le travail.
+   */
+  readonly draft = computed(() => {
+    const record = this.record();
+    return record ? this.data.evaluationDraft(record.id) : EMPTY_ANSWERS;
+  });
   readonly certificate = computed(() => this.data.certificateFor(this.requestId()));
   readonly guard = computed(() => this.data.evaluationService.canEvaluate(this.requestId()));
   readonly attempts = computed(() => this.data.evaluationAttempts(this.requestId()));
 
   readonly methods = EVALUATION_METHODS;
   readonly labels = EVALUATION_METHOD_LABELS;
+  readonly statusLabels = EVALUATION_STATUS_LABELS;
   readonly info = EVALUATION_METHOD_INFO;
   readonly FORMAT_LABELS = FORMAT_LABELS;
 
@@ -451,5 +494,10 @@ export class EvaluationWorkspace {
     if (record) {
       this.data.finalizeEvaluation(record.id);
     }
+  }
+
+  /** Conserve le brouillon de réponses pendant la passation. */
+  saveDraft(evaluationId: string, answers: EvaluationAnswers): void {
+    this.data.saveEvaluationDraft(evaluationId, answers);
   }
 }

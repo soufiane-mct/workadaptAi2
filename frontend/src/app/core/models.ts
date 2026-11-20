@@ -989,6 +989,11 @@ export interface EvaluationReport {
   criteria: CriterionResult[];
   strengths: string[];
   gaps: string[];
+  /**
+   * Règles éliminatoires violées : elles invalident l'épreuve quel que
+   * soit le score. Vide si aucune règle bloquante n'a été enfreinte.
+   */
+  blocking?: string[];
   feedback: { notion: string; detail: string; advice: string }[];
   levelBefore: number;
   levelAfter: number;

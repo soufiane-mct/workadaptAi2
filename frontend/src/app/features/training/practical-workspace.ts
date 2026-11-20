@@ -403,7 +403,6 @@ export class PracticalWorkspace extends WorkspaceBase {
     this.criteriaChecked.set([]);
     this.hintIndex.set(-1);
     this.consoleLines.set([]);
-    this.verification.set(undefined);
   }
 
   runCommand(index: number, command: string): void {
@@ -465,14 +464,20 @@ export class PracticalWorkspace extends WorkspaceBase {
     this.hintIndex.update((value) => Math.min(this.lab()!.hints.length - 1, value + 1));
   }
 
+  /**
+   * Un lab ne peut être proposé à l'agent que si toutes les preuves
+   * demandées sont là : toutes les commandes exécutées (mode AUTO) ou tous
+   * les critères de réussite cochés (mode HUMAIN). Une validation partielle
+   * ne prouve rien et bloquerait le parcours sans raison.
+   */
   canValidate(lab: Lab): boolean {
     if (!this.editable() || this.isDone(lab.id)) {
       return false;
     }
     if (lab.validationMode === 'AUTO') {
-      return this.executed().length > 0;
+      return this.executed().length >= lab.commands.length;
     }
-    return this.criteriaChecked().length > 0 || this.checked().length > 0;
+    return this.criteriaChecked().length >= lab.successCriteria.length;
   }
 
   isStepChecked(lab: Lab, index: number): boolean {
@@ -540,16 +545,9 @@ export class PracticalWorkspace extends WorkspaceBase {
     });
 
     if (this.completeValidated(lab.id, lab.estimatedMinutes, verification)) {
-      this.resetLabState();
+      // L'état du lab n'est pas effacé après une validation réussie : le
+      // parcours reste relisible (commandes, cases, console et verdict).
     }
-  }
-
-  private resetLabState(): void {
-    this.executed.set([]);
-    this.checked.set([]);
-    this.criteriaChecked.set([]);
-    this.hintIndex.set(-1);
-    this.consoleLines.set([]);
   }
 
   modeLabel(mode: Lab['validationMode']): string {

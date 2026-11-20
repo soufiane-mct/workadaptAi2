@@ -1,10 +1,29 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  OnInit,
+  output,
+  signal,
+} from '@angular/core';
 import {
   ChallengeTask,
   EvaluationAnswers,
   EvaluationRecord,
   TechnicalChallengeDocument,
 } from '../../core/models';
+
+/** Reconstitue le type d'une ligne de journal à partir de son marqueur. */
+function lineKind(text: string): 'in' | 'ok' | 'err' {
+  if (text.startsWith('✓')) {
+    return 'ok';
+  }
+  if (text.startsWith('✗')) {
+    return 'err';
+  }
+  return 'in';
+}
 
 @Component({
   selector: 'wa-technical-challenge',
@@ -16,7 +35,7 @@ import {
           <strong>{{ doc().title }}</strong>
         </div>
         <div class="bench__meta">
-          <span class="eval-badge"><span class="material-symbols-outlined">schedule</span>{{ doc().durationMinutes }} min</span>
+          <span class="eval-badge"><span class="material-symbols-outlined">schedule</span>Durée indicative {{ doc().durationMinutes }} min</span>
           <span class="eval-badge"><span class="material-symbols-outlined">terminal</span>{{ doc().tasks.length }} tâches</span>
         </div>
       </header>
@@ -91,7 +110,7 @@ import {
               <div class="eval-actions" style="margin-top: 10px">
                 <button class="eval-btn" type="button" (click)="runCheck(task)">
                   <span class="material-symbols-outlined">play_arrow</span>
-                  Exécuter la vérification
+                  Consigner le contrôle
                 </button>
                 <button class="eval-btn eval-btn--ghost" type="button" (click)="revealHint(task.id)">
                   <span class="material-symbols-outlined">lightbulb</span>
@@ -140,6 +159,7 @@ import {
               <textarea
                 class="wa-textarea"
                 rows="3"
+                [attr.aria-label]="'Note d’exécution pour la tâche : ' + task.title"
                 [value]="noteFor(task.id)"
                 (input)="setNote(task.id, $any($event.target).value)"
                 placeholder="Ex. Image multi-étapes 148 Mo, utilisateur non root, healthcheck OK ; test de restauration réussi."
@@ -154,7 +174,12 @@ import {
           La correction vérifie chaque critère. Un rendu sans critère éliminatoire ne peut pas
           réussir, même si le reste est bon.
         </p>
-        <button class="eval-btn eval-btn--primary" type="button" [disabled]="totalChecked() === 0" (click)="submit()">
+        <button
+          class="eval-btn eval-btn--primary"
+          type="button"
+          [disabled]="!allTasksValid()"
+          (click)="submit()"
+        >
           <span class="material-symbols-outlined">engineering</span>
           Rendre l’épreuve technique
         </button>
@@ -426,8 +451,12 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TechnicalChallenge {
+export class TechnicalChallenge implements OnInit {
   readonly record = input.required<EvaluationRecord>();
+  /** Brouillon de réponses déjà saisies (conservé à la navigation). */
+  readonly draft = input<EvaluationAnswers>({});
+  /** Émis à chaque modification : le parent conserve le brouillon. */
+  readonly changed = output<EvaluationAnswers>();
   readonly submitted = output<EvaluationAnswers>();
 
   readonly doc = computed(() => this.record().document as TechnicalChallengeDocument);
@@ -437,6 +466,71 @@ export class TechnicalChallenge {
   private readonly notes = signal<Record<string, string>>({});
   private readonly hints = signal<Record<string, string>>({});
   private readonly logs = signal<Record<string, { kind: 'in' | 'ok' | 'err'; text: string }[]>>({});
+
+  /**
+   * Réhydratation : quitter l'épreuve puis y revenir ne doit pas effacer
+   * les critères cochés, les notes, les indices et le journal.
+   */
+  ngOnInit(): void {
+    const saved = this.draft();
+    const checks: Record<string, number[]> = {};
+    const notes: Record<string, string> = {};
+    const hints: Record<string, string> = {};
+    const logs: Record<string, { kind: 'in' | 'ok' | 'err'; text: string }[]> = {};
+
+    for (const task of this.doc().tasks) {
+      const picked = saved[task.id];
+      if (Array.isArray(picked)) {
+        checks[task.id] = picked.filter((value): value is number => typeof value === 'number');
+      }
+      const note = saved[`${task.id}::note`];
+      if (typeof note === 'string') {
+        notes[task.id] = note;
+      }
+      if (saved[`${task.id}::hint`] !== undefined) {
+        hints[task.id] = task.hint;
+      }
+      const log = saved[`${task.id}::log`];
+      if (typeof log === 'string') {
+        const lines = log.split('\n').filter((line) => line.trim().length > 0);
+        if (lines.length > 0) {
+          logs[task.id] = lines.map((text) => ({ kind: lineKind(text), text }));
+        }
+      }
+    }
+
+    this.checks.set(checks);
+    this.notes.set(notes);
+    this.hints.set(hints);
+    this.logs.set(logs);
+  }
+
+  /** Réponses courantes, dans le format attendu par le correcteur. */
+  currentAnswers(): EvaluationAnswers {
+    const answers: EvaluationAnswers = {};
+    for (const task of this.doc().tasks) {
+      answers[task.id] = this.checkedFor(task.id);
+      const note = this.noteFor(task.id).trim();
+      if (note.length > 0) {
+        answers[`${task.id}::note`] = note;
+      }
+      const log = this.linesFor(task.id)
+        .map((line) => line.text)
+        .join('\n');
+      if (log.length > 0) {
+        answers[`${task.id}::log`] = log;
+      }
+      // L'usage d'un indice réduit le score de la tâche : il est transmis.
+      if (this.hintFor(task.id).trim().length > 0) {
+        answers[`${task.id}::hint`] = 1;
+      }
+    }
+    return answers;
+  }
+
+  private emitChange(): void {
+    this.changed.emit(this.currentAnswers());
+  }
 
   readonly active = computed(() => {
     const tasks = this.doc().tasks;
@@ -457,6 +551,15 @@ export class TechnicalChallenge {
     this.totalCriteria() === 0 ? 0 : Math.round((this.totalChecked() / this.totalCriteria()) * 100),
   );
 
+  /**
+   * L'épreuve ne peut être rendue que si chaque tâche satisfait son critère
+   * éliminatoire : sinon la tâche est invalidée à la correction et la
+   * remise n'aurait aucun sens.
+   */
+  readonly allTasksValid = computed(() =>
+    this.doc().tasks.every((task) => this.checkedFor(task.id).includes(0)),
+  );
+
   checkedFor(taskId: string): number[] {
     return this.checks()[taskId] ?? [];
   }
@@ -471,6 +574,7 @@ export class TechnicalChallenge {
           : [...current, index],
       };
     });
+    this.emitChange();
   }
 
   isTaskValid(task: ChallengeTask): boolean {
@@ -483,6 +587,7 @@ export class TechnicalChallenge {
 
   setNote(taskId: string, value: string): void {
     this.notes.update((map) => ({ ...map, [taskId]: value }));
+    this.emitChange();
   }
 
   hintFor(taskId: string): string {
@@ -493,28 +598,44 @@ export class TechnicalChallenge {
     const task = this.doc().tasks.find((item) => item.id === taskId);
     if (task) {
       this.hints.update((map) => ({ ...map, [taskId]: task.hint }));
+      this.emitChange();
     }
   }
 
+  /**
+   * Consigne le contrôle effectué dans le journal de la tâche.
+   *
+   * Le frontend ne peut pas exécuter l'environnement technique du backend :
+   * la trace consignée est donc un journal des vérifications déclarées par
+   * l'employé, pas une exécution réelle. Le libellé le dit explicitement.
+   */
   runCheck(task: ChallengeTask): void {
     const id = task.id;
     this.logs.update((map) => ({
       ...map,
       [id]: [
         ...(map[id] ?? []),
-        { kind: 'in', text: `$ verify --task ${task.id}` },
+        { kind: 'in', text: `$ vérif --tache ${task.id}` },
         this.checkedFor(id).includes(0)
-          ? { kind: 'ok', text: `✓ Environnement conforme : ${task.environment}` }
+          ? {
+              kind: 'ok',
+              text: `✓ Contrôle consigné — critère éliminatoire déclaré satisfait. Environnement : ${task.environment}`,
+            }
           : { kind: 'err', text: '✗ Critère éliminatoire non satisfait — corrigez avant de rendre.' },
       ],
     }));
+    this.emitChange();
+  }
+
+  /** Journal d'une tâche : il est transmis au correcteur. */
+  linesFor(taskId: string): { kind: 'in' | 'ok' | 'err'; text: string }[] {
+    return this.logs()[taskId] ?? [];
   }
 
   submit(): void {
-    const answers: EvaluationAnswers = {};
-    for (const task of this.doc().tasks) {
-      answers[task.id] = this.checkedFor(task.id);
+    if (!this.allTasksValid()) {
+      return;
     }
-    this.submitted.emit(answers);
+    this.submitted.emit(this.currentAnswers());
   }
 }

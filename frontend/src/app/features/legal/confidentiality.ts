@@ -153,7 +153,8 @@ import { DataService } from '../../core/data/data.service';
                 <span>
                   <strong>Collecte permanente</strong><br />
                   <span class="wa-small wa-muted">
-                    Nécessaire pour détecter les écarts et suivre la progression.
+                    Nécessaire pour détecter les écarts et suivre la progression. Son retrait
+                    suspend le diagnostic et le parcours en cours.
                   </span>
                 </span>
               </label>
@@ -162,7 +163,9 @@ import { DataService } from '../../core/data/data.service';
                 <span>
                   <strong>Partage avec le superviseur</strong><br />
                   <span class="wa-small wa-muted">
-                    Nécessaire à la validation des parcours par un humain.
+                    Permet à votre superviseur de suivre votre progression et vos résultats.
+                    Son retrait lui cache votre parcours et vos résultats ; la validation de la
+                    demande reste possible.
                   </span>
                 </span>
               </label>

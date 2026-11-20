@@ -22,7 +22,7 @@
               <span class="material-symbols-outlined">{{ item.icon }}</span>
               <span class="nav__label">{{ item.label }}</span>
               @if (item.badge) {
-                <span class="nav__badge">{{ item.badge }}</span>
+                <span class="nav__badge" role="status" [attr.aria-label]="item.badge + ' élément(s) en attente'">{{ item.badge }}</span>
               }
             </a>
           }
