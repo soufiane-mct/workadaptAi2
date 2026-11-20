@@ -92,6 +92,24 @@ export class CertificationService {
         note: `Certificat ${certificate.id} délivré.`,
       });
       this.training.attachCertificate(record.requestId, certificate.id);
+
+      // La maîtrise est établie : les remédiations ouvertes sur le même
+      // écart ne servent plus à rien et sont closes.
+      const closed = this.training.closeRemediationsFor(
+        request.gapId,
+        `Fermée automatiquement : certificat ${certificate.id} délivré après une évaluation réussie.`,
+      );
+      if (closed.length > 0) {
+        this.notifications.notify({
+          type: 'TRAINING_COMPLETED',
+          title: `Remédiation close : ${request.skillLabel}`,
+          message: `La remédiation n’est plus nécessaire : un certificat a été délivré (tentative ${report.attempt}).`,
+          audience: ['EMPLOYEE', 'MANAGER'],
+          link: `/app/validations/${closed[0].id}`,
+          employeeId: request.employeeId,
+        });
+      }
+
       this.notifications.notify({
         type: 'CERTIFICATE_ISSUED',
         title: `Certificat délivré : ${certificate.skillLabel}`,

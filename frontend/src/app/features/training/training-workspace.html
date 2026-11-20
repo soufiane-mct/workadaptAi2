@@ -128,6 +128,30 @@
         }
       }
 
+      @if (isCompleted()) {
+        <section class="ws-panel">
+          <h2>Parcours terminé</h2>
+          <p class="ws-panel__sub">
+            Toutes les étapes sont validées et la preuve de fin est déposée. Vous pouvez relire
+            le parcours (verdicts de l’agent et preuves envoyées conservés) puis générer une
+            évaluation : la méthode reste votre choix.
+          </p>
+          <div class="ws-actions">
+            @if (certificate(); as cert) {
+              <a class="btn btn--primary" [routerLink]="['/app/certificats', cert.id]">
+                <span class="material-symbols-outlined">workspace_premium</span>
+                Voir le certificat
+              </a>
+            } @else {
+              <a class="btn btn--primary" [routerLink]="['/app/evaluations', requestId()]">
+                <span class="material-symbols-outlined">fact_check</span>
+                Générer une évaluation
+              </a>
+            }
+          </div>
+        </section>
+      }
+
       @if (editable()) {
         <section class="ws-panel">
           <h2>Preuve de fin — {{ capstoneLabel() }}</h2>

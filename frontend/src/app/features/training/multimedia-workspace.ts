@@ -312,9 +312,9 @@ export class MultimediaWorkspace extends WorkspaceBase {
   selectUnit(unitId: string): void {
     this.select(unitId);
     this.restitutionDone.set(false);
-    this.notes.set('');
+    // Les notes déjà écrites restent visibles (relecture d'un parcours fait).
+    this.notes.set(this.savedNotes(unitId));
     this.mode.set('video');
-    this.verification.set(undefined);
   }
 
   saveNotes(): void {

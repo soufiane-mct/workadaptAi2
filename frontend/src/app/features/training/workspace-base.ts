@@ -70,6 +70,9 @@ export abstract class WorkspaceBase implements OnInit, OnDestroy {
    */
   ngOnInit(): void {
     this.timer = setInterval(() => this.trackTime(), 20000);
+    // Un parcours déjà terminé reste consultable : on recharge le verdict
+    // de l'agent et les preuves envoyées, étape par étape.
+    this.showVerdict(this.activeUnit()?.id ?? '');
   }
 
   ngOnDestroy(): void {
@@ -94,7 +97,19 @@ export abstract class WorkspaceBase implements OnInit, OnDestroy {
     if (!this.isLocked(unitId)) {
       this.trackTime();
       this.selectedUnitId.set(unitId);
+      // Relit le verdict déjà obtenu pour cette étape (parcours déjà fait).
+      this.showVerdict(unitId);
     }
+  }
+
+  /** Affiche le dernier verdict enregistré par l'agent pour une unité. */
+  private showVerdict(unitId: string): void {
+    this.verification.set(unitId ? this.verdictFor(unitId) : undefined);
+  }
+
+  /** Notes déjà enregistrées pour une unité (relecture d'un parcours terminé). */
+  protected savedNotes(unitId: string): string {
+    return this.progress().units.find((unit) => unit.unitId === unitId)?.notes ?? '';
   }
 
   /**

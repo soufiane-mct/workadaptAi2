@@ -197,20 +197,29 @@ const ACCENTS: Record<EvaluationMethod, { accent: string; soft: string; head: st
           <section class="eval-panel failed">
             <h2>Aucun certificat émis</h2>
             <p class="eval-panel__sub" style="margin-bottom: 10px">
-              Un certificat n’est délivré qu’après une évaluation réussie. Une remédiation a été
-              créée dans le domaine Formation et soumise au superviseur : elle devra être suivie
-              avant un nouveau passage.
+              Un certificat n’est délivré qu’après une évaluation réussie. Vous pouvez relire le
+              parcours déjà suivi, puis repasser une autre épreuve : la méthode reste votre choix.
             </p>
             <div class="eval-actions">
-              <a class="eval-btn" routerLink="/app/formations">
+              <a class="eval-btn" [routerLink]="['/app/formations', requestId()]">
                 <span class="material-symbols-outlined">school</span>
-                Voir mes formations
+                Revoir la formation
               </a>
+              @if (rep.decision !== 'REUSSI') {
+                <button class="eval-btn eval-btn--primary" type="button" (click)="retry()">
+                  <span class="material-symbols-outlined">replay</span>
+                  Repasser une autre épreuve
+                </button>
+              }
               <a class="eval-btn eval-btn--ghost" routerLink="/app/ecarts">
                 <span class="material-symbols-outlined">track_changes</span>
                 Voir l’écart
               </a>
             </div>
+            <p class="wa-small wa-muted" style="margin-top: 10px">
+              Tentative {{ attempts() }} effectuée{{ attempts() > 1 ? 's' : '' }} · chaque tentative
+              est conservée dans l’historique et réinjectée dans la collecte.
+            </p>
           </section>
         }
 
@@ -359,13 +368,22 @@ export class EvaluationWorkspace {
 
   readonly request = computed(() => this.data.requestById(this.requestId()));
   readonly program = computed(() => this.data.programFor(this.requestId()));
-  readonly record = computed(() => this.data.evaluationFor(this.requestId()));
+  /**
+   * Mode reprise : l'employé a échoué, il relit son parcours et revient
+   * générer une nouvelle épreuve. Le sélecteur des cinq méthodes
+   * réapparaît, sans effacer l'historique des tentatives.
+   */
+  readonly retryMode = signal(false);
+  readonly record = computed(() =>
+    this.retryMode() ? undefined : this.data.evaluationFor(this.requestId()),
+  );
   readonly report = computed(() => {
     const record = this.record();
     return record ? this.data.reportFor(record.id) : undefined;
   });
   readonly certificate = computed(() => this.data.certificateFor(this.requestId()));
   readonly guard = computed(() => this.data.evaluationService.canEvaluate(this.requestId()));
+  readonly attempts = computed(() => this.data.evaluationAttempts(this.requestId()));
 
   readonly methods = EVALUATION_METHODS;
   readonly labels = EVALUATION_METHOD_LABELS;
@@ -401,6 +419,23 @@ export class EvaluationWorkspace {
     }
     const result = this.data.openEvaluation(this.requestId(), method);
     this.feedback.set(result.message);
+    if (result.ok) {
+      // Nouvelle épreuve générée : on quitte le mode reprise.
+      this.retryMode.set(false);
+    }
+  }
+
+  /**
+   * Reprise après un échec : l'employé revient de relire son parcours et
+   * choisit une nouvelle méthode d'évaluation. L'épreuve est régénérée
+   * à partir du curriculum réellement suivi.
+   */
+  retry(): void {
+    this.retryMode.set(true);
+    this.selected.set(null);
+    this.feedback.set(
+      'Choisissez une nouvelle méthode : l’épreuve est régénérée à partir de votre parcours.',
+    );
   }
 
   start(): void {

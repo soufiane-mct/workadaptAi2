@@ -142,6 +142,15 @@ export class EvaluationService {
     if (!program || !request) {
       return { ok: false, message: 'Parcours introuvable.' };
     }
+    // Un certificat a déjà été délivré : aucune nouvelle évaluation n'est
+    // ouverte. La maîtrise est établie, la boucle s'arrête là.
+    if (request.certificateId) {
+      return {
+        ok: false,
+        message:
+          'Un certificat a déjà été délivré pour cette formation : aucune nouvelle évaluation n’est nécessaire.',
+      };
+    }
 
     const document = buildEvaluationDocument(program, method);
     const record: EvaluationRecord = {

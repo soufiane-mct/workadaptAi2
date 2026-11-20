@@ -357,6 +357,11 @@ export class DataService {
     return this.evaluationService.open(requestId, method);
   }
 
+  /** Nombre de tentatives d'évaluation déjà faites sur cette formation. */
+  evaluationAttempts(requestId: string): number {
+    return this.evaluationService.attempts(requestId);
+  }
+
   startEvaluation(requestId: string): void {
     this.evaluationService.start(requestId);
   }

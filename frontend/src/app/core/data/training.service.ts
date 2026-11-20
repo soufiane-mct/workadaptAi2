@@ -633,6 +633,36 @@ export class TrainingService {
     return { ok: true, message: 'Formation terminée. L’évaluation est disponible.' };
   }
 
+  /**
+   * Clôture les remédiations encore ouvertes sur un écart.
+   *
+   * Lorsqu'un certificat est délivré après une reprise, le parcours de
+   * remédiation devenu inutile est fermé : le superviseur n'a plus à
+   * l'approuver. La demande d'origine n'est jamais touchée.
+   */
+  closeRemediationsFor(gapId: string, reason: string): TrainingRequest[] {
+    const open = this._requests().filter(
+      (request) =>
+        request.gapId === gapId &&
+        request.origin === 'REMEDIATION' &&
+        (request.status === 'PENDING' || request.status === 'APPROVED'),
+    );
+    for (const request of open) {
+      this.patchRequest(request.id, {
+        status: 'CANCELLED',
+        decidedAt: isoTimestamp(),
+        supervisorNote: reason,
+      });
+      this.audit.log({
+        actor: 'Assessment & Certification Agent',
+        action: 'Remédiation close',
+        target: request.id,
+        detail: reason,
+      });
+    }
+    return open;
+  }
+
   /* ---------------------------------------------------------------- *
    * Remédiation (créée par le domaine Certification après échec)
    * ---------------------------------------------------------------- */
