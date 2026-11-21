@@ -54,7 +54,7 @@ const WORKFLOW_LABELS: Record<WorkflowStatus, string> = {
           <small>Sur les dernières exécutions</small>
         </div>
         <div class="stat">
-          <span>Workflows actifs</span>
+          <span>Flux de travail actifs</span>
           <strong>{{ activeWorkflows() }}</strong>
           <small>Exécutions en cours ou bloquées</small>
         </div>
@@ -78,7 +78,6 @@ const WORKFLOW_LABELS: Record<WorkflowStatus, string> = {
                 <span class="agent__icon material-symbols-outlined">{{ iconFor(agent.code) }}</span>
                 <div>
                   <strong>{{ agent.name }}</strong>
-                  <span class="agent__code wa-mono">{{ agent.code }}</span>
                 </div>
                 <span class="wa-chip" [class]="healthClass(agent.health)">
                   {{ healthLabels[agent.health] }}
@@ -108,9 +107,9 @@ const WORKFLOW_LABELS: Record<WorkflowStatus, string> = {
       </section>
 
       <section class="panel">
-        <h2>Exécutions de workflow</h2>
+        <h2>Exécutions de flux de travail</h2>
         <p class="panel__sub">
-          Le pipeline complet est visible étape par étape. Une étape en attente de validation
+          La chaîne complète est visible étape par étape. Une étape en attente de validation
           humaine n’est jamais franchie automatiquement.
         </p>
         <div class="wf-list">
@@ -199,7 +198,7 @@ const WORKFLOW_LABELS: Record<WorkflowStatus, string> = {
               <li>Aucun agent ne certifie sans évaluation réellement passée.</li>
               <li>Aucun agent ne modifie un niveau de compétence sans preuve associée.</li>
               <li>Aucun agent ne crée de formation pendant qu’une évaluation est en cours.</li>
-              <li>La collecte continue même lorsque le pipeline attend une décision.</li>
+              <li>La collecte continue même lorsque le flux de travail attend une décision.</li>
             </ul>
           </section>
 
@@ -277,10 +276,6 @@ const WORKFLOW_LABELS: Record<WorkflowStatus, string> = {
       .agent__head strong {
         display: block;
         font-size: 12px;
-      }
-      .agent__code {
-        font-size: 9.5px;
-        color: var(--wa-ink-faint);
       }
       .agent__mission {
         margin: 0;
@@ -472,7 +467,7 @@ export class AgentsPage {
   }
 
   agentName(code: string): string {
-    return this.agents().find((agent) => agent.code === code)?.name ?? code;
+    return this.agents().find((agent) => agent.code === code)?.name ?? 'Agent non identifié';
   }
 
   healthClass(health: AgentHealth): string {

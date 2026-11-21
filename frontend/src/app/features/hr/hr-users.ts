@@ -178,7 +178,7 @@ interface DirectoryUser {
                 <span class="material-symbols-outlined">history</span>
                 <div>
                   <strong>Journal d’audit</strong>
-                  <small>Lecture RH et administrateur, sans contenu d’épreuve.</small>
+                  <small>Lecture administrateur uniquement, sans contenu d’épreuve.</small>
                 </div>
               </div>
             </div>
@@ -305,7 +305,7 @@ export class HrUsersPage {
   readonly created = signal<DirectoryUser[]>([]);
 
   readonly users = computed<DirectoryUser[]>(() => {
-    const employees: DirectoryUser[] = this.data.team.map((member) => ({
+    const employees: DirectoryUser[] = this.data.directoryTeam.map((member) => ({
       id: member.id,
       name: member.name,
       email: member.email,
@@ -314,18 +314,23 @@ export class HrUsersPage {
       department: member.department,
       status: member.status,
     }));
-    const staff: DirectoryUser[] = this.data.accounts
-      .filter((account) => account.role !== 'EMPLOYEE')
-      .map((account) => ({
-        id: account.id,
-        name: account.name,
-        email: account.email,
-        role: account.role,
-        jobTitle: account.jobTitle,
-        department: account.department,
-        status: 'ACTIVE' as const,
-      }));
-    return [...employees, ...staff, ...this.created()];
+    const accounts: DirectoryUser[] = this.data.accounts().map((account) => ({
+      id: account.id,
+      name: account.name,
+      email: account.email,
+      role: account.role,
+      jobTitle: account.jobTitle,
+      department: account.department,
+      status: 'ACTIVE' as const,
+    }));
+    const unique = new Map<string, DirectoryUser>();
+    for (const user of [...employees, ...accounts, ...this.created()]) {
+      const key = user.email.trim().toLowerCase();
+      if (!unique.has(key)) {
+        unique.set(key, user);
+      }
+    }
+    return [...unique.values()];
   });
 
   readonly filtered = computed(() => {

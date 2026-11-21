@@ -477,3 +477,56 @@ table.wa-table {
   width: 380px;
 }
 
+/* ---------- Impression du document de démonstration ---------- */
+@media print {
+  body:has(wa-certificate-detail),
+  body.wa-certificate-printing {
+    background: #fff !important;
+  }
+
+  body:has(wa-certificate-detail) .shell,
+  body.wa-certificate-printing .shell {
+    display: block !important;
+    min-height: 0 !important;
+    background: #fff !important;
+  }
+
+  body:has(wa-certificate-detail) .shell > .side,
+  body:has(wa-certificate-detail) .shell .topbar,
+  body:has(wa-certificate-detail) .shell > .backdrop,
+  body.wa-certificate-printing .shell > .side,
+  body.wa-certificate-printing .shell .topbar,
+  body.wa-certificate-printing .shell > .backdrop {
+    display: none !important;
+  }
+
+  body:has(wa-certificate-detail) .shell > .main,
+  body.wa-certificate-printing .shell > .main {
+    display: block !important;
+  }
+
+  body:has(wa-certificate-detail) .shell .content,
+  body.wa-certificate-printing .shell .content {
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body:has(wa-certificate-detail) wa-certificate-detail .page-head,
+  body:has(wa-certificate-detail) wa-certificate-detail .split,
+  body.wa-certificate-printing wa-certificate-detail .page-head,
+  body.wa-certificate-printing wa-certificate-detail .split {
+    display: none !important;
+  }
+
+  body:has(wa-certificate-detail) wa-certificate-detail .award,
+  body.wa-certificate-printing wa-certificate-detail .award {
+    margin: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+}
+

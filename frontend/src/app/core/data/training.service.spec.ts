@@ -65,7 +65,7 @@ describe('TrainingService — conditions de fin atteignables', () => {
     expect(training.completeUnit(requestId, unitId, { minutes }).ok).toBe(true);
   }
 
-  it('permet de terminer un parcours PROJECT (le crédit covers la durée de curriculum)', () => {
+  it('permet de terminer un parcours PROJECT (le crédit couvre la durée du parcours)', () => {
     const requestId = started('PROJECT');
     const program = training.programFor(requestId)! as ProjectProgram;
     const progress = training.progressFor(requestId)!;

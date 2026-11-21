@@ -18,6 +18,28 @@ import {
 import { DataService } from '../../core/data/data.service';
 import { programUnits } from '../../core/data/training/helpers';
 
+const WORKSPACE_NOTES_MARKER = 'workadapt.training-workspace.notes' as const;
+const WORKSPACE_NOTES_VERSION = 1 as const;
+
+interface WorkspaceNotesEnvelope {
+  marker: typeof WORKSPACE_NOTES_MARKER;
+  version: typeof WORKSPACE_NOTES_VERSION;
+  note: string;
+  state?: unknown;
+}
+
+function isWorkspaceNotesEnvelope(value: unknown): value is WorkspaceNotesEnvelope {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<WorkspaceNotesEnvelope>;
+  return (
+    candidate.marker === WORKSPACE_NOTES_MARKER &&
+    candidate.version === WORKSPACE_NOTES_VERSION &&
+    typeof candidate.note === 'string'
+  );
+}
+
 /**
  * Base commune aux sept espaces de formation.
  *
@@ -55,6 +77,8 @@ export abstract class WorkspaceBase implements OnInit, OnDestroy {
       : Math.round((this.doneCount() / this.units().length) * 100),
   );
 
+  /** Notes visibles de l'unité active, communes aux sept formats. */
+  readonly notes = signal('');
   /** Dernier verdict de l'agent sur l'unité affichée. */
   readonly verification = signal<StepVerification | undefined>(undefined);
   /** Historique des verdicts, par unité. */
@@ -71,8 +95,8 @@ export abstract class WorkspaceBase implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.timer = setInterval(() => this.trackTime(), 20000);
     // Un parcours déjà terminé reste consultable : on recharge le verdict
-    // de l'agent et les preuves envoyées, étape par étape.
-    this.showVerdict(this.activeUnit()?.id ?? '');
+    // de l'agent, les notes et les preuves envoyées, étape par étape.
+    this.activateUnit(this.activeUnit()?.id ?? '');
   }
 
   ngOnDestroy(): void {
@@ -82,7 +106,12 @@ export abstract class WorkspaceBase implements OnInit, OnDestroy {
   }
 
   status(unitId: string): 'LOCKED' | 'AVAILABLE' | 'IN_PROGRESS' | 'DONE' {
-    return this.progress().units.find((unit) => unit.unitId === unitId)?.status ?? 'LOCKED';
+    const liveProgress = this.data.progressFor(this.request().id);
+    return (
+      liveProgress?.units.find((unit) => unit.unitId === unitId)?.status ??
+      this.progress().units.find((unit) => unit.unitId === unitId)?.status ??
+      'LOCKED'
+    );
   }
 
   isDone(unitId: string): boolean {
@@ -96,9 +125,24 @@ export abstract class WorkspaceBase implements OnInit, OnDestroy {
   select(unitId: string): void {
     if (!this.isLocked(unitId)) {
       this.trackTime();
-      this.selectedUnitId.set(unitId);
-      // Relit le verdict déjà obtenu pour cette étape (parcours déjà fait).
-      this.showVerdict(unitId);
+      this.activateUnit(unitId);
+    }
+  }
+
+  /** Met à jour les notes visibles et les conserve pour l'unité active. */
+  setNotes(value: string): void {
+    this.notes.set(value);
+    const unitId = this.activeUnit()?.id;
+    if (unitId) {
+      this.persistUnitNotes(unitId, value);
+    }
+  }
+
+  /** Conserve les notes visibles de l'unité active. */
+  saveNotes(): void {
+    const unitId = this.activeUnit()?.id;
+    if (unitId) {
+      this.persistUnitNotes(unitId, this.notes());
     }
   }
 
@@ -107,9 +151,96 @@ export abstract class WorkspaceBase implements OnInit, OnDestroy {
     this.verification.set(unitId ? this.verdictFor(unitId) : undefined);
   }
 
+  /**
+   * Active une unité et restaure son état visible.
+   *
+   * Les implémentations-specifics complètent cette méthode via
+   * `restoreUnitState` : la sélection et la relecture des notes restent
+   * identiques dans les sept formats.
+   */
+  private activateUnit(unitId: string): void {
+    if (!unitId) {
+      this.selectedUnitId.set('');
+      this.notes.set('');
+      this.verification.set(undefined);
+      return;
+    }
+    this.selectedUnitId.set(unitId);
+    this.showVerdict(unitId);
+    this.notes.set(this.savedNotes(unitId));
+    this.restoreUnitState(unitId);
+  }
+
+  /**
+   * Restaure l'état propre au format d'une unité.
+   *
+   * Le hook est volontairement vide dans la base : les sept formats
+   * l'implémentent sans dupliquer la sélection, les notes ni le verdict.
+   */
+  protected restoreUnitState(_unitId: string): void {}
+
   /** Notes déjà enregistrées pour une unité (relecture d'un parcours terminé). */
   protected savedNotes(unitId: string): string {
-    return this.progress().units.find((unit) => unit.unitId === unitId)?.notes ?? '';
+    const raw = this.rawNotes(unitId);
+    const envelope = this.parseEnvelope(raw);
+    return envelope?.note ?? raw;
+  }
+
+  /** État structuré enregistré pour une unité, s'il existe. */
+  protected unitState<T>(unitId: string): T | undefined {
+    const envelope = this.parseEnvelope(this.rawNotes(unitId));
+    return envelope?.state as T | undefined;
+  }
+
+  /**
+   * Conserve l'état structuré d'une unité sans perdre sa note visible.
+   *
+   * `note` permet aux formats multi-champs de conserver leur restitution
+   * principale dans le même emplacement que les autres formats.
+   */
+  protected saveUnitState(unitId: string, state: unknown, note = this.savedNotes(unitId)): void {
+    const envelope: WorkspaceNotesEnvelope = {
+      marker: WORKSPACE_NOTES_MARKER,
+      version: WORKSPACE_NOTES_VERSION,
+      note,
+      state,
+    };
+    this.data.saveTrainingNotes(this.request().id, unitId, JSON.stringify(envelope));
+    if (this.activeUnit()?.id === unitId) {
+      this.notes.set(note);
+    }
+  }
+
+  private persistUnitNotes(unitId: string, note: string): void {
+    const existing = this.parseEnvelope(this.rawNotes(unitId));
+    const envelope: WorkspaceNotesEnvelope = {
+      marker: WORKSPACE_NOTES_MARKER,
+      version: WORKSPACE_NOTES_VERSION,
+      note,
+      ...(existing?.state === undefined ? {} : { state: existing.state }),
+    };
+    this.data.saveTrainingNotes(this.request().id, unitId, JSON.stringify(envelope));
+  }
+
+  private rawNotes(unitId: string): string {
+    const liveProgress = this.data.progressFor(this.request().id);
+    return (
+      liveProgress?.units.find((unit) => unit.unitId === unitId)?.notes ??
+      this.progress().units.find((unit) => unit.unitId === unitId)?.notes ??
+      ''
+    );
+  }
+
+  private parseEnvelope(raw: string): WorkspaceNotesEnvelope | undefined {
+    if (!raw) {
+      return undefined;
+    }
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      return isWorkspaceNotesEnvelope(parsed) ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /**
@@ -165,8 +296,35 @@ export abstract class WorkspaceBase implements OnInit, OnDestroy {
     if (verification.verdict !== 'VALIDE') {
       return false;
     }
+    this.trackTime();
     const outcome = this.data.completeTrainingUnit(this.request().id, unitId, minutes);
-    return outcome.ok;
+    if (!outcome.ok) {
+      return false;
+    }
+
+    const nextUnitId = this.nextAvailableUnit(unitId);
+    if (nextUnitId) {
+      this.activateUnit(nextUnitId);
+    }
+    return true;
+  }
+
+  /** Première unité disponible qui suit l'unité terminée. */
+  private nextAvailableUnit(completedUnitId: string): string | undefined {
+    const units = this.units();
+    const completedIndex = units.findIndex((unit) => unit.id === completedUnitId);
+    const ordered =
+      completedIndex < 0
+        ? units
+        : [...units.slice(completedIndex + 1), ...units.slice(0, completedIndex)];
+    const liveProgress = this.data.progressFor(this.request().id);
+
+    return ordered.find((unit) => {
+      const status =
+        liveProgress?.units.find((item) => item.unitId === unit.id)?.status ??
+        this.progress().units.find((item) => item.unitId === unit.id)?.status;
+      return status === 'AVAILABLE' || status === 'IN_PROGRESS';
+    })?.id;
   }
 
   private trackTime(): void {

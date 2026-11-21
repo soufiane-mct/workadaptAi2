@@ -101,7 +101,7 @@ type AuditFilter = 'ALL' | 'DECISION' | 'FORMATION' | 'EVALUATION' | 'COLLECTE' 
                   <td>
                     <span class="wa-chip" [class]="actionClass(entry)">{{ entry.action }}</span>
                   </td>
-                  <td class="wa-small">{{ entry.target }}</td>
+                  <td class="wa-small">{{ targetLabel(entry.target) }}</td>
                   <td class="wa-small detail">{{ entry.detail }}</td>
                   <td class="wa-small mono">{{ entry.ip }}</td>
                 </tr>
@@ -143,7 +143,7 @@ type AuditFilter = 'ALL' | 'DECISION' | 'FORMATION' | 'EVALUATION' | 'COLLECTE' 
               <li>Écriture seule : aucune entrée n’est modifiable ni supprimable.</li>
               <li>Chaque décision porte son auteur, sa date et son adresse d’origine.</li>
               <li>Les refus d’accès et les contestations sont conservés.</li>
-              <li>Le journal est accessible aux RH et aux administrateurs, pas aux superviseurs.</li>
+              <li>Le journal est réservé aux administrateurs, pas aux ressources humaines ni aux superviseurs.</li>
               <li>Aucune réponse détaillée d’évaluation n’y figure.</li>
             </ul>
           </section>
@@ -304,12 +304,50 @@ export class HrAuditPage {
     this.message.set(
       `Export simulé du journal : ${this.filtered().length} entrée(s), filtre « ${
         this.filters.find((filter) => filter.value === this.active())?.label
-      } ». Aucun fichier réel n’est produit ; un backend générera le CSV horodaté.`,
+      } ». Aucun fichier réel n’est produit ; un service serveur générera le CSV horodaté.`,
     );
   }
 
   actorKind(entry: AuditEntry): string {
     return this.isAgent(entry.actor) ? 'Agent IA' : 'Humain';
+  }
+
+  /** Présente la cible sans exposer d'identifiant technique brut. */
+  targetLabel(target: string): string {
+    if (!target) {
+      return 'Ressource interne';
+    }
+    if (target.startsWith('gap-')) {
+      return 'Écart de compétences';
+    }
+    if (target.startsWith('treq-') || target.startsWith('req-')) {
+      return 'Demande de formation';
+    }
+    if (target.startsWith('eval-')) {
+      return 'Évaluation';
+    }
+    if (target.startsWith('cert-')) {
+      return 'Certificat interne';
+    }
+    if (target.startsWith('usr-')) {
+      return 'Compte utilisateur';
+    }
+    if (target.startsWith('emp-')) {
+      return 'Espace collaborateur';
+    }
+    if (target.startsWith('wf-')) {
+      return 'Flux de travail';
+    }
+    if (target.startsWith('evt-')) {
+      return 'Événement de collecte';
+    }
+    if (target.startsWith('aud-')) {
+      return 'Entrée d’audit';
+    }
+    if (target.startsWith('rpt-')) {
+      return 'Rapport agrégé';
+    }
+    return target;
   }
 
   actionClass(entry: AuditEntry): string {

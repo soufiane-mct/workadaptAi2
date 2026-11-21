@@ -35,41 +35,48 @@ export const routes: Routes = [
       },
       {
         path: 'onboarding',
+        canActivate: [roleGuard(['EMPLOYEE'])],
         title: 'Profil professionnel — WorkAdapt AI',
         loadComponent: () =>
           import('./features/employee/onboarding').then((m) => m.Onboarding),
       },
       {
         path: 'collecte',
+        canActivate: [roleGuard(['EMPLOYEE'])],
         title: 'Collecte — WorkAdapt AI',
         loadComponent: () =>
           import('./features/employee/collecte').then((m) => m.CollectePage),
       },
       {
         path: 'ecarts',
+        canActivate: [roleGuard(['EMPLOYEE'])],
         title: 'Mes écarts — WorkAdapt AI',
         loadComponent: () => import('./features/employee/gaps').then((m) => m.GapsPage),
       },
       {
         path: 'ecarts/:gapId',
+        canActivate: [roleGuard(['EMPLOYEE'])],
         title: 'Détail de l’écart — WorkAdapt AI',
         loadComponent: () =>
           import('./features/employee/gap-detail').then((m) => m.GapDetailPage),
       },
       {
         path: 'formations',
+        canActivate: [roleGuard(['EMPLOYEE'])],
         title: 'Mes formations — WorkAdapt AI',
         loadComponent: () =>
           import('./features/employee/trainings').then((m) => m.TrainingsPage),
       },
       {
         path: 'formations/:requestId',
+        canActivate: [roleGuard(['EMPLOYEE'])],
         title: 'Formation en cours — WorkAdapt AI',
         loadComponent: () =>
           import('./features/training/training-workspace').then((m) => m.TrainingWorkspace),
       },
       {
         path: 'evaluations/:requestId',
+        canActivate: [roleGuard(['EMPLOYEE'])],
         title: 'Évaluation — WorkAdapt AI',
         loadComponent: () =>
           import('./features/evaluation/evaluation-workspace').then(
@@ -78,29 +85,34 @@ export const routes: Routes = [
       },
       {
         path: 'certificats',
+        canActivate: [roleGuard(['EMPLOYEE'])],
         title: 'Mes certificats — WorkAdapt AI',
         loadComponent: () =>
           import('./features/employee/certificates').then((m) => m.CertificatesPage),
       },
       {
         path: 'certificats/:id',
+        canActivate: [roleGuard(['EMPLOYEE'])],
         title: 'Certificat — WorkAdapt AI',
         loadComponent: () =>
           import('./features/employee/certificate-detail').then((m) => m.CertificateDetail),
       },
       {
         path: 'veille',
+        canActivate: [roleGuard(['EMPLOYEE'])],
         title: 'Veille technologique — WorkAdapt AI',
         loadComponent: () =>
           import('./features/employee/tech-watch').then((m) => m.TechWatchPage),
       },
       {
         path: 'profil',
+        canActivate: [roleGuard(['EMPLOYEE'])],
         title: 'Mon profil — WorkAdapt AI',
         loadComponent: () => import('./features/employee/profile').then((m) => m.ProfilePage),
       },
       {
         path: 'entretien',
+        canActivate: [roleGuard(['EMPLOYEE'])],
         title: 'Entretien IA — WorkAdapt AI',
         loadComponent: () => import('./features/employee/interview').then((m) => m.InterviewPage),
       },

@@ -191,7 +191,7 @@ interface MethodAggregate {
           <section class="panel">
             <h2>Règle de délivrance</h2>
             <ol class="rules">
-              <li>Formation terminée : toutes les unités, checkpoints et preuve de fin validés.</li>
+              <li>Formation terminée : toutes les unités, points de contrôle et preuve de fin validés.</li>
               <li>Méthode d’évaluation choisie par l’employé après la formation.</li>
               <li>Épreuve générée depuis la formation, passée, puis corrigée par l’IA.</li>
               <li>Score supérieur ou égal au seuil propre à la formation.</li>
@@ -208,7 +208,7 @@ interface MethodAggregate {
             <ul class="rules rules--danger">
               <li>Un certificat ne couvre pas les compétences voisines.</li>
               <li>Il n’est pas une habilitation réglementaire.</li>
-              <li>Il peut être remis en cause si le niveau baisse durablement.</li>
+              <li>Il ne décrit pas les évolutions ultérieures de la compétence.</li>
               <li>Il ne permet pas de comparer deux employés.</li>
             </ul>
           </section>

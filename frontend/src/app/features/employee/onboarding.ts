@@ -51,8 +51,8 @@ export class Onboarding {
   readonly objectives = signal('');
   readonly weeklyHours = signal(6);
   readonly preferences = signal<TrainingFormat[]>(['PRACTICAL', 'MULTIMEDIA']);
-  readonly consentCollect = signal(true);
-  readonly consentShare = signal(true);
+  readonly consentCollect = signal(false);
+  readonly consentShare = signal(false);
   readonly pastTrainings = signal<PastTraining[]>([]);
   readonly cv = signal<CvExtraction | undefined>(undefined);
   readonly message = signal('');
@@ -60,6 +60,14 @@ export class Onboarding {
   readonly error = signal('');
 
   constructor() {
+    // Une inscription commence dans un espace vierge : aucune donnée du
+    // collaborateur de démonstration ne peut être préchargée par accident.
+    if (this.router.url.startsWith('/register')) {
+      this.consentCollect.set(false);
+      this.consentShare.set(false);
+      return;
+    }
+
     const profile = this.data.profile();
     this.firstName.set(profile.firstName);
     this.lastName.set(profile.lastName);
@@ -156,18 +164,25 @@ export class Onboarding {
     let userId = this.data.profile().userId;
     let employeeId = this.data.profile().employeeId;
     if (this.isRegister()) {
-      const account = this.auth.register({
-        firstName: this.firstName(),
-        lastName: this.lastName(),
-        email: this.email(),
-        jobTitle: this.jobTitle(),
-        department: this.department() || 'Non renseigné',
-      });
-      userId = account.id;
-      // Un nouvel employé reçoit son propre identifiant métier : ses
-      // notifications et ses preuves ne doivent jamais être confondues
-      // avec celles d'un autre collaborateur.
-      employeeId = `emp-${account.id}`;
+      try {
+        const account = this.auth.register({
+          firstName: this.firstName(),
+          lastName: this.lastName(),
+          email: this.email(),
+          jobTitle: this.jobTitle(),
+          department: this.department() || 'Non renseigné',
+        });
+        userId = account.id;
+        // Un nouvel employé reçoit son propre identifiant métier : ses
+        // notifications et ses preuves ne doivent jamais être confondues
+        // avec celles d'un autre collaborateur.
+        employeeId = account.employeeId ?? `emp-${account.id}`;
+      } catch (error) {
+        this.error.set(
+          error instanceof Error ? error.message : 'La création du compte a échoué.',
+        );
+        return;
+      }
     }
 
     const profile: OnboardingProfile = {

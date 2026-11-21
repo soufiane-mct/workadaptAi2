@@ -14,6 +14,7 @@ import { GapService } from './gap.service';
 import { NotificationService } from './notification.service';
 import { ProfileService } from './profile.service';
 import { WorkflowStateService } from './workflow-state.service';
+import { DemoStateStore } from './demo-state.store';
 import {
   DATA_SOURCES,
   INITIAL_COLLECTION_EVENTS,
@@ -50,43 +51,61 @@ export class CollectionService {
   private readonly notifications = inject(NotificationService);
   private readonly audit = inject(AuditService);
   private readonly workflow = inject(WorkflowStateService);
+  private readonly store = inject(DemoStateStore);
 
-  private readonly _events = signal<CollectionEvent[]>(INITIAL_COLLECTION_EVENTS);
+  private readonly _events = signal<CollectionEvent[]>(
+    this.store.read<CollectionEvent[]>('collection.events', INITIAL_COLLECTION_EVENTS),
+  );
   // Journal du plus récent au plus ancien, comme les exécutions ajoutées ensuite.
   private readonly _runs = signal<CollectionRun[]>(
-    [...INITIAL_COLLECTION_RUNS].sort((a, b) => b.startedAt.localeCompare(a.startedAt)),
+    this.store.read<CollectionRun[]>('collection.runs', INITIAL_COLLECTION_RUNS).sort((a, b) =>
+      b.startedAt.localeCompare(a.startedAt),
+    ),
   );
-  private readonly _sources = signal<DataSource[]>(DATA_SOURCES);
-  private readonly _failed = signal(false);
+  private readonly _sources = signal<DataSource[]>(
+    this.store.read<DataSource[]>('collection.sources', DATA_SOURCES),
+  );
+  private readonly _failedByEmployee = signal<Record<string, boolean>>(
+    this.store.read<Record<string, boolean>>('collection.failed', { 'emp-0001': false }),
+  );
 
-  readonly events = this._events.asReadonly();
-  readonly runs = this._runs.asReadonly();
-  readonly sources = this._sources.asReadonly();
-  readonly failed = this._failed.asReadonly();
+  readonly events = computed(() =>
+    this._events().filter((event) => event.employeeId === this.profileService.employeeId()),
+  );
+  readonly runs = computed(() =>
+    this._runs().filter((run) => run.employeeId === this.profileService.employeeId()),
+  );
+  readonly sources = computed(() =>
+    this._sources().filter((source) => source.employeeId === this.profileService.employeeId()),
+  );
+  readonly failed = computed(
+    () => this._failedByEmployee()[this.profileService.employeeId()] ?? false,
+  );
 
   readonly connectedSources = computed(
-    () => this._sources().filter((source) => source.status === 'CONNECTED').length,
+    () => this.sources().filter((source) => source.status === 'CONNECTED').length,
   );
 
-  readonly lastRun = computed(() => this._runs()[0]);
+  readonly lastRun = computed(() => this.runs()[0]);
 
-  readonly eventCount = computed(() => this._events().length);
+  readonly eventCount = computed(() => this.events().length);
 
   readonly last24h = computed(() => {
     const limit = Date.now() - 24 * 3600 * 1000;
-    return this._events().filter((event) => new Date(event.at).getTime() >= limit).length;
+    return this.events().filter((event) => new Date(event.at).getTime() >= limit).length;
   });
 
   eventsForSkill(code: string): CollectionEvent[] {
-    return this._events().filter((event) => event.skillCodes.includes(code));
+    return this.events().filter((event) => event.skillCodes.includes(code));
   }
 
   bySource(source: CollectionSource): CollectionEvent[] {
-    return this._events().filter((event) => event.source === source);
+    return this.events().filter((event) => event.source === source);
   }
 
   /** Collecte initiale après l'onboarding : CV, entretien et formations antérieures. */
   runInitialCollection(profile: OnboardingProfile): CollectionRun {
+    this.ensureSources(profile.employeeId);
     const events: SimulatedEvent[] = [
       {
         source: 'CV',
@@ -120,8 +139,11 @@ export class CollectionService {
       },
     ];
 
-    const created: CollectionEvent[] = events.map((event, index) => this.toEvent(event, index));
+    const created: CollectionEvent[] = events.map((event, index) =>
+      this.toEvent(event, index, 'evt', profile.employeeId),
+    );
     this._events.update((current) => [...created, ...current]);
+    this.persist();
     this.touchSources(created.map((event) => event.source));
 
     const gaps = this.gapService.detectFromSkills(
@@ -141,39 +163,45 @@ export class CollectionService {
    * l'écran produirait une notification par écart à chaque passage.
    */
   runDailyCollection(options: { simulateFailure?: boolean; silent?: boolean } = {}): CollectionRun {
+    const employeeId = this.profileService.employeeId();
+    this.ensureSources(employeeId);
     this.workflow.setCollectionRunning(true);
     const sources: CollectionSource[] = ['COLLECTOR', 'CONNECTED_APP', 'TECH_WATCH'];
 
     if (options.simulateFailure) {
-      this._failed.set(true);
+      const employeeId = this.profileService.employeeId();
+      this.setFailed(employeeId, true);
       this._sources.update((items) =>
         items.map((item) =>
-          item.code === 'COLLECTOR' ? { ...item, status: 'PARTIAL' } : item,
+          item.employeeId === employeeId && item.code === 'COLLECTOR'
+            ? { ...item, status: 'PARTIAL' }
+            : item,
         ),
       );
+      this.persist();
       const run = this.pushRun('DAILY', [], [], sources, {
         status: 'FAILED',
-        error: 'Desktop Collector injoignable — l’agent n’a pas répondu dans le délai imparti.',
+        error: 'Collecteur local injoignable — l’agent n’a pas répondu dans le délai imparti.',
       });
       this.notifications.notify({
         type: 'COLLECTION_FAILED',
         title: 'Collecte partielle',
         message:
-          'Le Desktop Collector n’a pas répondu. Les autres sources ont été conservées ; une reprise est possible.',
+          'Le Collecteur local n’a pas répondu. Les autres sources ont été conservées ; une reprise est possible.',
         audience: ['EMPLOYEE', 'MANAGER', 'ADMIN'],
         link: '/app/collecte',
       });
       this.audit.log({
-        actor: 'Data Collection Agent',
+        actor: 'Agent de collecte',
         action: 'Échec de collecte',
         target: run.id,
-        detail: 'Desktop Collector injoignable, sources restantes conservées.',
+        detail: 'Collecteur local injoignable, sources restantes conservées.',
       });
       this.workflow.setCollectionRunning(false);
       return run;
     }
 
-    this._failed.set(false);
+    this.setFailed(this.profileService.employeeId(), false);
     const pool: SimulatedEvent[] = [
       {
         source: 'COLLECTOR',
@@ -183,7 +211,7 @@ export class CollectionService {
         skillCodes: ['docker'],
         observed: true,
         confidence: 0.85,
-        proof: 'Journal du Desktop Collector · 2 sessions',
+        proof: 'Journal du Collecteur local · 2 sessions',
       },
       {
         source: 'CONNECTED_APP',
@@ -193,13 +221,13 @@ export class CollectionService {
         skillCodes: ['git', 'tests'],
         observed: true,
         confidence: 0.9,
-        proof: 'GitHub · pull request #214',
+        proof: 'GitHub · demande de fusion #214',
       },
       {
         source: 'TECH_WATCH',
         type: 'TECH_SIGNAL',
         label: 'Signal de veille : Dev Containers',
-        detail: 'Technologie en adoption, pertinence haute pour le poste de développeur backend.',
+        detail: 'Technologie en adoption, pertinence haute pour le poste de développeur serveur.',
         skillCodes: ['docker'],
         observed: false,
         confidence: 0.6,
@@ -208,12 +236,12 @@ export class CollectionService {
       {
         source: 'CONNECTED_APP',
         type: 'PROJECT_ACTIVITY',
-        label: 'Pipeline GitHub Actions encore en échec',
+        label: 'Chaîne d’intégration GitHub Actions encore en échec',
         detail: 'Deux exécutions rouges, aucune correction poussée.',
         skillCodes: ['cicd'],
         observed: true,
         confidence: 0.8,
-        proof: 'GitHub Actions · runs 1190 et 1191',
+        proof: 'GitHub Actions · exécutions 1190 et 1191',
       },
     ];
 
@@ -228,6 +256,7 @@ export class CollectionService {
       : [];
     if (consent) {
       this._events.update((current) => [...created, ...current]);
+    this.persist();
       this.touchSources(created.map((event) => event.source));
     }
 
@@ -269,7 +298,7 @@ export class CollectionService {
     }
 
     this.audit.log({
-      actor: 'Data Collection Agent',
+      actor: 'Agent de collecte',
       action: 'Collecte quotidienne',
       target: run.id,
       detail: consent
@@ -285,9 +314,15 @@ export class CollectionService {
    * Reprise après échec : ne rejoue que les sources concernées.
    */
   retryLastFailure(): CollectionRun {
+    const employeeId = this.profileService.employeeId();
     this._sources.update((items) =>
-      items.map((item) => (item.code === 'COLLECTOR' ? { ...item, status: 'CONNECTED' } : item)),
+      items.map((item) =>
+        item.employeeId === employeeId && item.code === 'COLLECTOR'
+          ? { ...item, status: 'CONNECTED' }
+          : item,
+      ),
     );
+    this.persist();
     return this.runDailyCollection();
   }
 
@@ -334,7 +369,7 @@ export class CollectionService {
   }
 
   private tickAutoCollection(): void {
-    if (!this._autoCollect()) {
+    if (!this._autoCollect() || !this.profileService.employeeId()) {
       return;
     }
     if (Date.now() < this._nextAutoRunAt()) {
@@ -350,6 +385,7 @@ export class CollectionService {
    * les étapes renvoyées.
    */
   recordStepVerification(input: {
+    employeeId?: string;
     requestId: string;
     unitId: string;
     unitTitle: string;
@@ -374,10 +410,12 @@ export class CollectionService {
       },
       0,
       `sv-${input.requestId}-${input.unitId}`,
+      input.employeeId ?? this.profileService.employeeId(),
     );
 
     this._events.update((current) => [event, ...current]);
-    this.touchSources(['TRAINING_STEP']);
+    this.persist();
+    this.touchSources(['TRAINING_STEP'], input.employeeId ?? this.profileService.employeeId());
     return event;
   }
 
@@ -386,6 +424,7 @@ export class CollectionService {
    * l'évaluation pourra prouver la maîtrise : l'écart devient partiellement résolu.
    */
   recordTrainingCompletion(input: {
+    employeeId?: string;
     requestId: string;
     programTitle: string;
     skillCode: string;
@@ -412,10 +451,15 @@ export class CollectionService {
       },
       0,
       `tc-${input.requestId}`,
+      input.employeeId ?? this.profileService.employeeId(),
     );
 
     this._events.update((current) => [event, ...current]);
-    this.touchSources(['TRAINING_COMPLETION']);
+    this.persist();
+    this.touchSources(
+      ['TRAINING_COMPLETION'],
+      input.employeeId ?? this.profileService.employeeId(),
+    );
 
     this.profileService.updateSkillLevel({
       code: input.skillCode,
@@ -447,6 +491,7 @@ export class CollectionService {
    * (niveau réel + statut de l'écart + notification).
    */
   recordEvaluationResult(input: {
+    employeeId?: string;
     requestId: string;
     evaluationId: string;
     methodLabel: string;
@@ -470,10 +515,15 @@ export class CollectionService {
       },
       0,
       `er-${input.evaluationId}`,
+      input.employeeId ?? this.profileService.employeeId(),
     );
 
     this._events.update((current) => [event, ...current]);
-    this.touchSources(['EVALUATION_RESULT']);
+    this.persist();
+    this.touchSources(
+      ['EVALUATION_RESULT'],
+      input.employeeId ?? this.profileService.employeeId(),
+    );
 
     this.profileService.updateSkillLevel({
       code: input.skillCode,
@@ -503,23 +553,33 @@ export class CollectionService {
     return gaps;
   }
 
-  private toEvent(event: SimulatedEvent, index: number, prefix = 'evt'): CollectionEvent {
+  private toEvent(
+    event: SimulatedEvent,
+    index: number,
+    prefix = 'evt',
+    employeeId = this.profileService.employeeId(),
+  ): CollectionEvent {
     return {
+      employeeId,
       id: `${prefix}-${Date.now()}-${index}`,
       at: new Date().toISOString(),
       ...event,
     };
   }
 
-  private touchSources(sources: CollectionSource[]): void {
+  private touchSources(
+    sources: CollectionSource[],
+    employeeId = this.profileService.employeeId(),
+  ): void {
     const unique = Array.from(new Set(sources));
     this._sources.update((items) =>
       items.map((item) =>
-        unique.includes(item.code)
+        item.employeeId === employeeId && unique.includes(item.code)
           ? { ...item, lastSync: new Date().toISOString(), records: (item.records ?? 0) + 1 }
           : item,
       ),
     );
+    this.persist();
   }
 
   private pushRun(
@@ -528,8 +588,10 @@ export class CollectionService {
     gaps: SkillGap[],
     sources: CollectionSource[],
     extra: { status?: CollectionRun['status']; error?: string } = {},
+    employeeId = this.profileService.employeeId(),
   ): CollectionRun {
     const run: CollectionRun = {
+      employeeId,
       id: `run-${Date.now()}`,
       kind,
       startedAt: new Date().toISOString(),
@@ -540,7 +602,64 @@ export class CollectionService {
       error: extra.error,
       sourcesUsed: sources,
     };
-    this._runs.update((runs) => [run, ...runs].slice(0, 40));
+    this._runs.update((runs) => [run, ...runs].slice(0, 80));
+    this.persist();
     return run;
+  }
+
+  /** Crée les sources Neutres d'un nouvel espace employé. */
+  private ensureSources(employeeId: string): void {
+    if (!employeeId) {
+      return;
+    }
+    const hasWorkspace = this._sources().some((source) => source.employeeId === employeeId);
+    if (hasWorkspace) {
+      return;
+    }
+    const sources = DATA_SOURCES.map((source) => ({
+      ...source,
+      employeeId,
+      records: 0,
+      lastSync: '',
+    }));
+    this._sources.update((items) => [...sources, ...items]);
+    this.persist();
+  }
+
+  private setFailed(employeeId: string, failed: boolean): void {
+    this._failedByEmployee.update((map) => ({ ...map, [employeeId]: failed }));
+    this.persist();
+  }
+
+  /** Efface la collecte d'un collaborateur sans toucher aux autres espaces. */
+  clearEmployee(employeeId: string): void {
+    this._events.update((events) => events.filter((event) => event.employeeId !== employeeId));
+    this._runs.update((runs) => runs.filter((run) => run.employeeId !== employeeId));
+    this._sources.update((sources) => sources.filter((source) => source.employeeId !== employeeId));
+    this._failedByEmployee.update((map) => {
+      const next = { ...map };
+      delete next[employeeId];
+      return next;
+    });
+    this.persist();
+  }
+
+  reset(): void {
+    this._events.set(INITIAL_COLLECTION_EVENTS.map((event) => ({ ...event })));
+    this._runs.set(
+      [...INITIAL_COLLECTION_RUNS]
+        .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+        .map((run) => ({ ...run })),
+    );
+    this._sources.set(DATA_SOURCES.map((source) => ({ ...source })));
+    this._failedByEmployee.set({ 'emp-0001': false });
+    this.persist();
+  }
+
+  private persist(): void {
+    this.store.write('collection.events', this._events());
+    this.store.write('collection.runs', this._runs());
+    this.store.write('collection.sources', this._sources());
+    this.store.write('collection.failed', this._failedByEmployee());
   }
 }

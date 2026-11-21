@@ -111,7 +111,7 @@ import { DataService } from '../../core/data/data.service';
 
       <section class="panel">
         <h2>Règle de lecture</h2>
-        <div class="split--even" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+        <div class="split--even">
           <div class="kv">
             <span>Score et seuil</span>
             <strong>Le seuil est défini par la formation.</strong>
@@ -199,6 +199,17 @@ import { DataService } from '../../core/data/data.service';
         gap: 6px;
         flex: none;
         align-items: flex-end;
+      }
+      @media (max-width: 700px) {
+        .result {
+          flex-direction: column;
+        }
+        .result__side {
+          width: 100%;
+          flex-direction: row;
+          flex-wrap: wrap;
+          align-items: center;
+        }
       }
     `,
   ],

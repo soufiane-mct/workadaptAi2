@@ -161,6 +161,122 @@ form {
   filter: brightness(1.06);
 }
 
+.selected-account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--wa-border);
+  border-radius: 12px;
+  background: var(--wa-surface-2);
+}
+
+.selected-account > .material-symbols-outlined {
+  color: var(--wa-primary-deep);
+  font-size: 24px;
+}
+
+.selected-account > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.selected-account strong,
+.selected-account small {
+  display: block;
+}
+
+.selected-account strong {
+  font-size: 12.5px;
+}
+
+.selected-account small {
+  overflow: hidden;
+  color: var(--wa-ink-soft);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demo-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  color: var(--wa-ink-soft);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.demo-note .material-symbols-outlined {
+  flex: none;
+  color: var(--wa-primary-deep);
+  font-size: 17px;
+}
+
+.registered {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--wa-border);
+}
+
+.registered h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.registered > p {
+  margin: 3px 0 10px;
+  color: var(--wa-ink-soft);
+  font-size: 11px;
+}
+
+.registered__list {
+  display: grid;
+  gap: 6px;
+}
+
+.registered__list button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--wa-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--wa-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.registered__list button:hover {
+  border-color: var(--wa-primary);
+  background: var(--wa-primary-soft);
+}
+
+.registered__list button > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+
+.registered__list strong,
+.registered__list small {
+  display: block;
+}
+
+.registered__list strong {
+  font-size: 11.5px;
+}
+
+.registered__list small {
+  overflow: hidden;
+  color: var(--wa-ink-soft);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .panel__foot {
   margin: 18px 0 0;
   font-size: 12.5px;

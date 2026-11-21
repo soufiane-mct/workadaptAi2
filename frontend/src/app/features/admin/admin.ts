@@ -195,6 +195,20 @@ import { DataService } from '../../core/data/data.service';
             </div>
             <div class="setting">
               <div>
+                <strong>Données de démonstration</strong>
+                <p class="wa-small wa-muted">
+                  Rétablit le jeu initial de cette démonstration dans le navigateur. Les comptes,
+                  la session et les accès restent disponibles ; toutes les données de travail sont
+                  remplacées.
+                </p>
+              </div>
+              <button class="btn btn--danger" type="button" (click)="resetDemo()">
+                <span class="material-symbols-outlined">restart_alt</span>
+                Rétablir les données
+              </button>
+            </div>
+            <div class="setting">
+              <div>
                 <strong>Certification</strong>
                 <p class="wa-small wa-muted">
                   Un certificat exige une évaluation réussie au seuil de la formation. Aucune
@@ -211,12 +225,12 @@ import { DataService } from '../../core/data/data.service';
               <div>
                 <span>Budget de style par composant</span>
                 <strong>14 kB avertissement · 20 kB erreur</strong>
-                <small>Vérifié à chaque build.</small>
+                <small>Vérifié à chaque construction.</small>
               </div>
               <div>
                 <span>Persistance</span>
                 <strong>Simulée dans le navigateur</strong>
-                <small>Comptes et session ; le backend Spring Boot remplacera ce stockage.</small>
+                <small>Comptes, session et espaces collaborateur dans le navigateur ; une future API remplacera ce stockage.</small>
               </div>
               <div>
                 <span>Données métier</span>
@@ -226,7 +240,7 @@ import { DataService } from '../../core/data/data.service';
               <div>
                 <span>Exports</span>
                 <strong>CSV / PDF simulés et étiquetés</strong>
-                <small>Aucun export réel n’est produit sans backend.</small>
+                <small>Aucun export réel n’est produit sans service serveur.</small>
               </div>
             </div>
           </section>
@@ -410,7 +424,7 @@ import { DataService } from '../../core/data/data.service';
 export class AdminPage {
   private readonly data = inject(DataService);
 
-  readonly accounts = computed(() => this.data.accounts);
+  readonly accounts = this.data.accounts;
   readonly sources = this.data.dataSources;
   readonly agents = computed(() => this.data.agents);
   readonly kpis = computed(() => this.data.kpis);
@@ -434,6 +448,27 @@ export class AdminPage {
       value
         ? 'Mode démonstration activé : le temps est compressé (×20). Les conditions de fin restent réelles.'
         : 'Mode démonstration désactivé : le temps réel des unités s’applique.',
+    );
+  }
+
+  /**
+   * Rétablit le jeu de démonstration après une confirmation explicite.
+   *
+   * Les comptes et la session sont conservés : la confirmation porte
+   * uniquement sur les données de travail de la démonstration.
+   */
+  resetDemo(): void {
+    const confirmed = window.confirm(
+      'Rétablir toutes les données de démonstration ? Les comptes et la session de ce navigateur seront conservés.',
+    );
+    if (!confirmed) {
+      this.message.set('La réinitialisation a été annulée : les données sont inchangées.');
+      return;
+    }
+
+    this.data.resetDemo();
+    this.message.set(
+      'Les données de démonstration ont été rétablies. Les comptes et la session restent disponibles.',
     );
   }
 

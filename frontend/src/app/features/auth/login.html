@@ -41,33 +41,47 @@
         }
       </div>
 
-      <label class="wa-field">
-        <span class="wa-field__label">Adresse professionnelle</span>
-        <input
-          class="wa-input"
-          type="email"
-          [value]="email()"
-          (input)="email.set($any($event.target).value)"
-          autocomplete="username"
-        />
-      </label>
+      @if (selectedAccount(); as account) {
+        <div class="selected-account" aria-live="polite">
+          <span class="material-symbols-outlined">account_circle</span>
+          <div>
+            <strong>{{ account.name }}</strong>
+            <small>{{ account.email }}</small>
+          </div>
+          <span class="wa-chip wa-chip--neutral">Compte de démonstration</span>
+        </div>
+      }
 
-      <label class="wa-field">
-        <span class="wa-field__label">Mot de passe</span>
-        <input
-          class="wa-input"
-          type="password"
-          [value]="password()"
-          (input)="password.set($any($event.target).value)"
-          autocomplete="current-password"
-        />
-      </label>
+      <p class="demo-note">
+        <span class="material-symbols-outlined">info</span>
+        Cette démonstration ne demande aucun mot de passe et ne valide aucun secret. Le rôle
+        sélectionné ouvre directement un espace local, entièrement simulé.
+      </p>
 
       <button class="submit" type="submit">
         <span class="material-symbols-outlined">login</span>
-        Se connecter en tant que {{ labels[selected()] }}
+        Ouvrir la démonstration — {{ labels[selected()] }}
       </button>
     </form>
+
+    @if (registeredAccounts().length > 0) {
+      <section class="registered" aria-labelledby="registered-title">
+        <h3 id="registered-title">Comptes créés sur cet appareil</h3>
+        <p>Ces comptes conservent leur espace de démonstration personnel.</p>
+        <div class="registered__list">
+          @for (account of registeredAccounts(); track account.id) {
+            <button type="button" (click)="openRegisteredAccount(account.id)">
+              <span class="material-symbols-outlined">person</span>
+              <span>
+                <strong>{{ account.name }}</strong>
+                <small>{{ account.email }}</small>
+              </span>
+              <span class="material-symbols-outlined">arrow_forward</span>
+            </button>
+          }
+        </div>
+      </section>
+    }
 
     <p class="panel__foot">
       Nouveau collaborateur ?

@@ -166,6 +166,8 @@ export const GAP_LIFECYCLE_LABELS: Record<GapLifecycle, string> = {
 };
 
 export interface SkillEstimate {
+  /** Employé propriétaire de cette estimation. */
+  employeeId: string;
   code: string;
   label: string;
   category: string;
@@ -184,6 +186,8 @@ export interface SkillEstimate {
 }
 
 export interface SkillHistoryEntry {
+  /** Employé propriétaire de cette évolution. */
+  employeeId: string;
   id: string;
   at: string;
   skillCode: string;
@@ -198,6 +202,8 @@ export interface SkillHistoryEntry {
 export type GapPriority = 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface SkillGap {
+  /** Employé propriétaire de l'écart. */
+  employeeId: string;
   id: string;
   skillCode: string;
   skillLabel: string;
@@ -238,7 +244,7 @@ export type CollectionSource =
 export const COLLECTION_SOURCE_LABELS: Record<CollectionSource, string> = {
   CV: 'CV',
   INTERVIEW: 'Entretien IA',
-  COLLECTOR: 'Desktop Collector',
+  COLLECTOR: 'Collecteur local',
   CONNECTED_APP: 'Application connectée',
   PAST_TRAINING: 'Formation antérieure',
   TRAINING_COMPLETION: 'Formation terminée',
@@ -258,6 +264,8 @@ export type CollectionEventType =
   | 'PROFILE_UPDATE';
 
 export interface CollectionEvent {
+  /** Employé concerné par l'événement. */
+  employeeId: string;
   id: string;
   at: string;
   source: CollectionSource;
@@ -273,6 +281,8 @@ export interface CollectionEvent {
 export type CollectionRunStatus = 'SUCCESS' | 'PARTIAL' | 'FAILED';
 
 export interface CollectionRun {
+  /** Employé concerné par l'exécution. */
+  employeeId: string;
   id: string;
   kind: 'INITIAL' | 'DAILY';
   startedAt: string;
@@ -285,6 +295,8 @@ export interface CollectionRun {
 }
 
 export interface DataSource {
+  /** Employé concerné par la source. */
+  employeeId: string;
   code: CollectionSource;
   label: string;
   description: string;
@@ -630,6 +642,8 @@ export interface StepEvidence {
 /** Résultat de l'analyse d'une preuve d'étape. */
 export interface StepVerification {
   id: string;
+  /** Employé propriétaire de la preuve analysée. */
+  employeeId: string;
   requestId: string;
   unitId: string;
   unitTitle: string;
@@ -803,7 +817,12 @@ export interface ExamQuestion {
   correctIndexes: number[];
   explanation: string;
   points: number;
-  critical?: boolean;
+  /**
+   * Règle éliminatoire explicite. `false` signifie que la question ne peut
+   * pas invalider l'épreuve à elle seule ; la correction ne doit jamais le
+   * déduire de sa position dans la section.
+   */
+  critical: boolean;
 }
 
 export interface ExamSection {
@@ -831,6 +850,14 @@ export interface ChallengeTask {
   successCriteria: string[];
   points: number;
   hint: string;
+  /**
+   * Index des critères éliminatoires de la tâche.
+   *
+   * Ces index sont une donnée explicite du document. Le correcteur ne doit
+   * jamais déduire le caractère bloquant de la position d'une réponse ou
+   * d'un autre critère.
+   */
+  blockingCriteria?: number[];
 }
 
 export interface TechnicalChallengeDocument {
@@ -884,10 +911,21 @@ export interface ProfessionalDossierDocument {
   defenseQuestions: { id: string; prompt: string; expectedThemes: string[] }[];
 }
 
+export type DefenseQuestionKind = 'FOND' | 'RELANCE' | 'CONTRE_EXEMPLE' | 'SITUATION';
+
+export const DEFENSE_QUESTION_KIND_LABELS: Record<DefenseQuestionKind, string> = {
+  FOND: 'Question de fond',
+  RELANCE: 'Relance',
+  CONTRE_EXEMPLE: 'Contre-exemple',
+  SITUATION: 'Mise en situation',
+};
+
 export interface InterviewQuestion {
   id: string;
   prompt: string;
-  kind: 'FOND' | 'RELANCE' | 'CONTRE_EXEMPLE' | 'SITUATION';
+  kind: DefenseQuestionKind;
+  /** La question invalide l'épreuve si sa maîtrise n'est pas démontrée. */
+  blocking?: boolean;
   expectedThemes: string[];
   redFlags: string[];
   points: number;
@@ -1064,6 +1102,8 @@ export interface AppNotification {
  * ------------------------------------------------------------------ */
 
 export interface TechSignal {
+  /** Employé destinataire du signal. */
+  employeeId: string;
   id: string;
   technology: string;
   category: string;

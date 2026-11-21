@@ -1,6 +1,7 @@
-import { computed, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { AppNotification, AppNotificationType, Role } from '../models';
 import { INITIAL_NOTIFICATIONS } from './mock-data';
+import { DemoStateStore } from './demo-state.store';
 
 /**
  * Notifications applicatives, ciblées par rôle et par employé.
@@ -9,10 +10,20 @@ import { INITIAL_NOTIFICATIONS } from './mock-data';
  */
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
-  private readonly _notifications = signal<AppNotification[]>(INITIAL_NOTIFICATIONS);
+  private readonly store = inject(DemoStateStore);
+
+  private readonly _notifications = signal<AppNotification[]>(
+    this.store.read<AppNotification[]>('notifications.items', INITIAL_NOTIFICATIONS),
+  );
   readonly notifications = this._notifications.asReadonly();
 
   readonly unread = computed(() => this._notifications().filter((item) => !item.read).length);
+
+  constructor() {
+    effect(() => {
+      this.store.write('notifications.items', this._notifications());
+    });
+  }
 
   notify(input: {
     type: AppNotificationType;
@@ -71,9 +82,19 @@ export class NotificationService {
 
   /** Une notification d'employé ne quitte jamais le périmètre de son employé. */
   private visibleTo(item: AppNotification, role: Role, employeeId?: string): boolean {
-    if (role !== 'EMPLOYEE' || !employeeId) {
+    if (role !== 'EMPLOYEE') {
       return true;
     }
-    return !item.employeeId || item.employeeId === employeeId;
+    return !!employeeId && item.employeeId === employeeId;
+  }
+
+  clearEmployee(employeeId: string): void {
+    this._notifications.update((items) =>
+      items.filter((item) => item.employeeId !== employeeId),
+    );
+  }
+
+  reset(): void {
+    this._notifications.set(INITIAL_NOTIFICATIONS.map((item) => ({ ...item })));
   }
 }

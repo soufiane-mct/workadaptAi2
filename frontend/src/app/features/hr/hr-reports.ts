@@ -22,7 +22,7 @@ interface ExportResult {
         <div>
           <h1>Rapports et exports</h1>
           <p>
-            Les exports sont simulés : aucun fichier réel n’est produit sans backend. Chaque
+            Les exports sont simulés : aucun fichier réel n’est produit sans service serveur. Chaque
             export est étiqueté comme tel, agrégé et non nominatif. Un CSV ne contient jamais de
             nom d’employé ni de score individuel.
           </p>
@@ -199,7 +199,7 @@ interface ExportResult {
               <li>Besoins agrégés, effectifs concernés et écarts moyens.</li>
               <li>Volumes de formations et de certifications par format.</li>
               <li>Valeurs des 13 KPI et cibles.</li>
-              <li>Statistiques de workflows et temps de traitement.</li>
+              <li>Statistiques des flux de travail et temps de traitement.</li>
             </ul>
           </section>
 
@@ -351,7 +351,7 @@ export class HrReportsPage {
     this.exportsList.update((list) => [exportItem, ...list]);
     this.message.set(
       `Export simulé généré : ${item.title} (${item.type}, ${item.records} lignes, ${item.scope}). ` +
-        'Aucun fichier réel n’a été téléchargé — un backend produira le document final.',
+        'Aucun fichier réel n’a été téléchargé — un service serveur produira le document final.',
     );
     this.messageOk.set(true);
     this.setPreview(exportItem);

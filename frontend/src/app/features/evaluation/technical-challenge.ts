@@ -125,20 +125,20 @@ function lineKind(text: string): 'in' | 'ok' | 'err' {
             <section class="eval-panel">
               <h2>Critères de réussite vérifiables</h2>
               <p class="eval-panel__sub">
-                Cochez uniquement ce qui est réellement observé dans votre rendu. Le premier
-                critère est éliminatoire : sans lui, la tâche est invalidée.
+                Cochez uniquement ce qui est réellement observé dans votre rendu. Les critères
+                éliminatoires sont signalés explicitement : sans eux, la tâche est invalidée.
               </p>
               <div class="criteria">
                 @for (criterion of task.successCriteria; track criterion; let index = $index) {
-                  <label class="criterion" [class.criterion--mandatory]="index === 0">
+                  <label class="criterion" [class.criterion--mandatory]="isBlocking(task, index)">
                     <input
                       type="checkbox"
                       [checked]="checkedFor(task.id).includes(index)"
                       (change)="toggleCriterion(task.id, index)"
                     />
                     <span>
-                      <strong>{{ index === 0 ? 'Éliminatoire — ' : '' }}{{ criterion }}</strong>
-                      <small>{{ index === 0 ? 'Sans ce critère, la tâche vaut 0.' : 'Critère de qualité vérifiable.' }}</small>
+                      <strong>{{ isBlocking(task, index) ? 'Éliminatoire — ' : '' }}{{ criterion }}</strong>
+                      <small>{{ isBlocking(task, index) ? 'Sans ce critère, la tâche vaut 0.' : 'Critère de qualité vérifiable.' }}</small>
                     </span>
                   </label>
                 }
@@ -557,7 +557,7 @@ export class TechnicalChallenge implements OnInit {
    * remise n'aurait aucun sens.
    */
   readonly allTasksValid = computed(() =>
-    this.doc().tasks.every((task) => this.checkedFor(task.id).includes(0)),
+    this.doc().tasks.every((task) => this.isTaskValid(task)),
   );
 
   checkedFor(taskId: string): number[] {
@@ -577,8 +577,14 @@ export class TechnicalChallenge implements OnInit {
     this.emitChange();
   }
 
+  isBlocking(task: ChallengeTask, index: number): boolean {
+    return (task.blockingCriteria ?? []).includes(index);
+  }
+
   isTaskValid(task: ChallengeTask): boolean {
-    return this.checkedFor(task.id).includes(0);
+    return (task.blockingCriteria ?? []).every((index) =>
+      this.checkedFor(task.id).includes(index),
+    );
   }
 
   noteFor(taskId: string): string {
@@ -616,7 +622,7 @@ export class TechnicalChallenge implements OnInit {
       [id]: [
         ...(map[id] ?? []),
         { kind: 'in', text: `$ vérif --tache ${task.id}` },
-        this.checkedFor(id).includes(0)
+        this.isTaskValid(task)
           ? {
               kind: 'ok',
               text: `✓ Contrôle consigné — critère éliminatoire déclaré satisfait. Environnement : ${task.environment}`,

@@ -1,5 +1,16 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { ChangeDetectionStrategy, Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  HostListener,
+  inject,
+  OnDestroy,
+  OnInit,
+  signal,
+  ViewChild,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { map } from 'rxjs';
@@ -27,6 +38,9 @@ interface NavGroup {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Shell implements OnInit, OnDestroy {
+  @ViewChild('menuToggle') private menuToggle?: ElementRef<HTMLButtonElement>;
+  @ViewChild('sideNav') private sideNav?: ElementRef<HTMLElement>;
+
   private readonly auth = inject(AuthService);
   private readonly data = inject(DataService);
   private readonly router = inject(Router);
@@ -40,6 +54,9 @@ export class Shell implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.data.collectionService.stopAutoCollection();
+    if (this.focusTimer) {
+      clearTimeout(this.focusTimer);
+    }
   }
 
   readonly user = this.auth.user;
@@ -53,6 +70,7 @@ export class Shell implements OnInit, OnDestroy {
     { initialValue: false },
   );
   readonly menuOpen = signal(false);
+  private focusTimer: ReturnType<typeof setTimeout> | undefined;
 
   readonly groups = computed<NavGroup[]>(() => {
     const role: Role = this.auth.role() ?? 'EMPLOYEE';
@@ -146,13 +164,92 @@ export class Shell implements OnInit, OnDestroy {
   });
 
   toggleMenu(): void {
-    this.menuOpen.update((open) => !open);
+    if (this.menuOpen()) {
+      this.closeMenu(true);
+    } else {
+      this.openMenu();
+    }
+  }
+
+  openMenu(): void {
+    this.menuOpen.set(true);
+    this.scheduleFocus(() => this.focusFirstInMenu());
+  }
+
+  closeMenu(restoreFocus = true): void {
+    this.menuOpen.set(false);
+    if (restoreFocus) {
+      this.scheduleFocus(() => this.menuToggle?.nativeElement.focus());
+    }
   }
 
   closeOnNavigate(): void {
     if (this.mobile()) {
-      this.menuOpen.set(false);
+      // La navigation va remplacer le contenu : le focus ne doit pas revenir
+      // sur le bouton du menu qui n'est plus dans le contexte utile.
+      this.closeMenu(false);
     }
+  }
+
+  /** Échap ferme le tiroir et Tab reste piégé tant qu'il est ouvert. */
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(event: KeyboardEvent): void {
+    if (!this.mobile() || !this.menuOpen()) {
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.closeMenu(true);
+      return;
+    }
+    if (event.key !== 'Tab') {
+      return;
+    }
+
+    const focusable = this.menuFocusableElements();
+    if (focusable.length === 0) {
+      event.preventDefault();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (!this.sideNav?.nativeElement.contains(active)) {
+      event.preventDefault();
+      first.focus();
+    } else if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  private menuFocusableElements(): HTMLElement[] {
+    const nav = this.sideNav?.nativeElement;
+    if (!nav) {
+      return [];
+    }
+    return Array.from(
+      nav.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((element) => !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true');
+  }
+
+  private focusFirstInMenu(): void {
+    this.menuFocusableElements()[0]?.focus();
+  }
+
+  private scheduleFocus(action: () => void): void {
+    if (this.focusTimer) {
+      clearTimeout(this.focusTimer);
+    }
+    this.focusTimer = setTimeout(() => {
+      this.focusTimer = undefined;
+      action();
+    });
   }
 
   logout(): void {

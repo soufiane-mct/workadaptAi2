@@ -44,7 +44,7 @@ export const DEMO_ACCOUNTS: User[] = [
     name: 'Soufiane Mechta',
     email: 'soufiane.mechta@workadapt.demo',
     role: 'EMPLOYEE',
-    jobTitle: 'Développeur backend',
+    jobTitle: 'Développeur serveur',
     department: 'Ingénierie',
     initials: 'SM',
     employeeId: 'emp-0001',
@@ -90,11 +90,11 @@ export const INITIAL_PROFILE: OnboardingProfile = {
   lastName: 'Mechta',
   email: 'soufiane.mechta@workadapt.demo',
   department: 'Ingénierie',
-  jobTitle: 'Développeur backend',
+  jobTitle: 'Développeur serveur',
   domain: 'DEV',
   seniority: 'CONFIRMED',
   tools: ['VS Code', 'Docker', 'Git', 'Postman', 'IntelliJ', 'Jira'],
-  projects: ['API de facturation', 'Migration vers conteneurs', 'Refonte du pipeline de livraison'],
+  projects: ['API de facturation', 'Migration vers conteneurs', 'Refonte de la chaîne de livraison'],
   objectives: [
     'Maîtriser la conteneurisation pour les mises en production',
     'Automatiser les livraisons de l’équipe',
@@ -111,7 +111,7 @@ export const INITIAL_PROFILE: OnboardingProfile = {
     fileName: 'CV_Soufiane_Mechta.pdf',
     uploadedAt: day(-95),
     experiences: [
-      'Développeur backend — 4 ans (API Java/Spring Boot)',
+      'Développeur serveur — 4 ans (API Java/Spring Boot)',
       'Développeur full-stack — 2 ans (Angular / Node.js)',
     ],
     skills: ['Java', 'Spring Boot', 'Angular', 'SQL', 'Git'],
@@ -143,7 +143,20 @@ function evidence(
   return { id, at, source, statement, observed, confidence };
 }
 
-export const INITIAL_SKILLS: SkillEstimate[] = [
+/**
+ * Associe un jeu de données de démonstration à son propriétaire tout en
+ * conservant le type contextuel des champs métier (statuts, priorités,
+ * sources…). Cette isolation est structurelle : aucun jeu partagé ne peut
+ * être ajouté à un espace employé sans identifiant explicite.
+ */
+function owned<T extends { employeeId: string }>(
+  employeeId: string,
+  items: Omit<T, 'employeeId'>[],
+): T[] {
+  return items.map((item) => ({ ...item, employeeId }) as T);
+}
+
+export const INITIAL_SKILLS: SkillEstimate[] = owned<SkillEstimate>('emp-0001', [
   {
     code: 'docker',
     label: 'Docker',
@@ -171,7 +184,7 @@ export const INITIAL_SKILLS: SkillEstimate[] = [
     trend: 1,
     source: 'OBSERVED',
     evidence: [
-      evidence('ev-c1', day(-2), 'CONNECTED_APP', 'Deux exécutions de pipeline en échec consultées sur GitHub Actions.', true, 0.8),
+      evidence('ev-c1', day(-2), 'CONNECTED_APP', 'Deux exécutions de chaîne d’intégration en échec consultées sur GitHub Actions.', true, 0.8),
       evidence('ev-c2', day(-6), 'COLLECTOR', 'Aucune session sur un outil d’intégration continue cette semaine.', true, 0.55),
       evidence('ev-c3', day(-8), 'INTERVIEW', 'Objectif déclaré : automatiser les livraisons de l’équipe.', false, 0.7),
     ],
@@ -210,7 +223,7 @@ export const INITIAL_SKILLS: SkillEstimate[] = [
   {
     code: 'angular',
     label: 'Angular',
-    category: 'Frontend',
+    category: 'Interfaces',
     level: 40,
     target: 70,
     confidence: 0.69,
@@ -237,9 +250,9 @@ export const INITIAL_SKILLS: SkillEstimate[] = [
     ],
     updatedAt: day(-1),
   },
-];
+]);
 
-export const INITIAL_SKILL_HISTORY: SkillHistoryEntry[] = [
+export const INITIAL_SKILL_HISTORY: SkillHistoryEntry[] = owned<SkillHistoryEntry>('emp-0001', [
   {
     id: 'hist-1',
     at: day(-40),
@@ -273,11 +286,11 @@ export const INITIAL_SKILL_HISTORY: SkillHistoryEntry[] = [
     evidenceIds: ['ev-g1'],
     confidence: 0.88,
   },
-];
+]);
 
-export const INITIAL_GAPS: SkillGap[] = [
+export const INITIAL_GAPS: SkillGap[] = owned<SkillGap>('emp-0001', [
   {
-    id: 'gap-docker',
+    id: 'gap-emp-0001-docker',
     skillCode: 'docker',
     skillLabel: 'Docker',
     currentLevel: 45,
@@ -287,7 +300,7 @@ export const INITIAL_GAPS: SkillGap[] = [
     confidence: 0.72,
     observedFacts: [
       evidence('gf-d1', day(-1), 'COLLECTOR', 'Docker Desktop utilisé 2 h 40 sur 7 jours.', true, 0.9),
-      evidence('gf-d2', day(-4), 'CONNECTED_APP', 'Dockerfile modifié sans build multi-étapes.', true, 0.85),
+      evidence('gf-d2', day(-4), 'CONNECTED_APP', 'Dockerfile modifié sans construction multi-étapes.', true, 0.85),
       evidence('gf-d3', day(-1), 'CONNECTED_APP', 'Deux déploiements manuels successifs sur l’API.', true, 0.8),
     ],
     inference:
@@ -298,7 +311,7 @@ export const INITIAL_GAPS: SkillGap[] = [
     detectedAt: day(-1),
   },
   {
-    id: 'gap-cicd',
+    id: 'gap-emp-0001-cicd',
     skillCode: 'cicd',
     skillLabel: 'CI/CD',
     currentLevel: 25,
@@ -307,18 +320,18 @@ export const INITIAL_GAPS: SkillGap[] = [
     priority: 'HIGH',
     confidence: 0.66,
     observedFacts: [
-      evidence('gf-c1', day(-2), 'CONNECTED_APP', 'Deux pipelines en échec consultés sans correction.', true, 0.8),
+      evidence('gf-c1', day(-2), 'CONNECTED_APP', 'Deux chaînes d’intégration en échec consultées sans correction.', true, 0.8),
       evidence('gf-c2', day(-6), 'COLLECTOR', 'Aucune session sur un outil d’intégration continue.', true, 0.55),
     ],
     inference:
-      'La compétence est surtout déclarative : peu de pratique observée, échecs de pipeline non traités. Le niveau réel est probablement inférieur au niveau déclaré.',
+      'La compétence est surtout déclarative : peu de pratique observée, échecs de chaîne d’intégration non traités. Le niveau réel est probablement inférieur au niveau déclaré.',
     sources: ['OBSERVED', 'DECLARED'],
     recommendedFormats: ['PRACTICAL', 'SIMULATION', 'PROJECT', 'MULTIMEDIA'],
     status: 'NOUVEAU',
     detectedAt: day(-2),
   },
   {
-    id: 'gap-kubernetes',
+    id: 'gap-emp-0001-kubernetes',
     skillCode: 'kubernetes',
     skillLabel: 'Kubernetes',
     currentLevel: 30,
@@ -339,7 +352,7 @@ export const INITIAL_GAPS: SkillGap[] = [
     queueNote: 'Détecté pendant une autre formation — actionnable après le cycle en cours.',
   },
   {
-    id: 'gap-angular',
+    id: 'gap-emp-0001-angular',
     skillCode: 'angular',
     skillLabel: 'Angular',
     currentLevel: 40,
@@ -357,22 +370,22 @@ export const INITIAL_GAPS: SkillGap[] = [
     status: 'RECONNU',
     detectedAt: day(-11),
   },
-];
+]);
 
 /* ------------------------------------------------------------------ *
  * Sources de collecte
  * ------------------------------------------------------------------ */
 
-export const DATA_SOURCES: DataSource[] = [
+export const DATA_SOURCES: DataSource[] = owned<DataSource>('emp-0001', [
   { code: 'CV', label: 'CV importé', description: 'Parcours, expériences et compétences déclarées.', status: 'CONNECTED', lastSync: day(-95), records: 1 },
   { code: 'INTERVIEW', label: 'Entretien IA', description: 'Réponses au diagnostic conversationnel.', status: 'CONNECTED', lastSync: day(-95), records: 24 },
-  { code: 'COLLECTOR', label: 'Desktop Collector', description: 'Applications actives, durées et fréquences.', status: 'CONNECTED', lastSync: day(0), records: 8421 },
+  { code: 'COLLECTOR', label: 'Collecteur local', description: 'Applications actives, durées et fréquences.', status: 'CONNECTED', lastSync: day(0), records: 8421 },
   { code: 'CONNECTED_APP', label: 'GitHub / GitLab', description: 'Dépôts, commits et pull requests autorisés.', status: 'CONNECTED', lastSync: day(0), records: 312 },
   { code: 'PAST_TRAINING', label: 'Formations antérieures', description: 'Formations suivies et certifications obtenues.', status: 'PARTIAL', lastSync: day(-30), records: 2 },
   { code: 'TRAINING_COMPLETION', label: 'Formations WorkAdapt', description: 'Parcours terminés et preuves produites.', status: 'CONNECTED', lastSync: day(-1), records: 3 },
   { code: 'EVALUATION_RESULT', label: 'Résultats d’évaluation', description: 'Scores et critères validés.', status: 'CONNECTED', lastSync: day(-1), records: 1 },
   { code: 'TECH_WATCH', label: 'Veille technologique', description: 'Technologies et compétences émergentes.', status: 'CONNECTED', lastSync: day(0), records: 12 },
-];
+]);
 
 /* ------------------------------------------------------------------ *
  * Catalogue des 7 formats
@@ -447,7 +460,7 @@ export const TRAINING_FORMAT_CATALOG: TrainingFormatInfo[] = [
       'Analyser le résultat selon les critères',
     ],
     example: 'Docker : créer un Dockerfile, construire une image, la lancer, la diagnostiquer.',
-    proof: 'Labs validés + tâche finale',
+    proof: 'Ateliers validés + tâche finale',
     icon: 'terminal',
     accent: 'teal',
     typicalHours: '10 à 18 h',
@@ -470,7 +483,7 @@ export const TRAINING_FORMAT_CATALOG: TrainingFormatInfo[] = [
       'Découper en jalons',
       'Analyser les livrables et conseiller',
     ],
-    example: 'CI/CD : mettre en place un pipeline complet pour une application existante.',
+    example: 'CI/CD : mettre en place une chaîne d’intégration complète pour une application existante.',
     proof: 'Projet final accepté selon rubrique',
     icon: 'account_tree',
     accent: 'amber',
@@ -563,7 +576,7 @@ export const INITIAL_NOTIFICATIONS: AppNotification[] = [
     message: 'Votre usage de Docker progresse, mais l’optimisation d’image et la fiabilité de livraison restent en dessous du niveau attendu (45 / 80).',
     at: day(-1),
     read: false,
-    link: '/app/ecarts/gap-docker',
+    link: '/app/ecarts/gap-emp-0001-docker',
     audience: ['EMPLOYEE'],
     employeeId: 'emp-0001',
   },
@@ -571,10 +584,10 @@ export const INITIAL_NOTIFICATIONS: AppNotification[] = [
     id: 'ntf-2',
     type: 'GAP_DETECTED',
     title: 'Nouvel écart détecté : CI/CD',
-    message: 'Deux pipelines en échec n’ont pas été traités. Le niveau attendu pour votre poste est de 70.',
+    message: 'Deux chaînes d’intégration en échec n’ont pas été traitées. Le niveau attendu pour votre poste est de 70.',
     at: day(-2),
     read: false,
-    link: '/app/ecarts/gap-cicd',
+    link: '/app/ecarts/gap-emp-0001-cicd',
     audience: ['EMPLOYEE'],
     employeeId: 'emp-0001',
   },
@@ -585,7 +598,7 @@ export const INITIAL_NOTIFICATIONS: AppNotification[] = [
     message: 'Kubernetes est en attente : il deviendra actionnable après la fin de votre formation en cours.',
     at: day(-3),
     read: true,
-    link: '/app/ecarts/gap-kubernetes',
+    link: '/app/ecarts/gap-emp-0001-kubernetes',
     audience: ['EMPLOYEE'],
     employeeId: 'emp-0001',
   },
@@ -626,8 +639,8 @@ export const INITIAL_CERTIFICATES: Certificate[] = [
 ];
 
 export const INITIAL_AUDIT: AuditEntry[] = [
-  { id: 'aud-1', at: day(-1), actor: 'Skill Intelligence Agent', action: 'Détection d’écart', target: 'gap-docker', detail: 'Écart Docker 45 → 80, confiance 0,72', ip: '10.0.4.18' },
-  { id: 'aud-2', at: day(-2), actor: 'Skill Intelligence Agent', action: 'Détection d’écart', target: 'gap-cicd', detail: 'Écart CI/CD 25 → 70, confiance 0,66', ip: '10.0.4.18' },
+  { id: 'aud-1', at: day(-1), actor: 'Agent d’analyse des compétences', action: 'Détection d’écart', target: 'gap-emp-0001-docker', detail: 'Écart Docker 45 → 80, confiance 0,72', ip: '10.0.4.18' },
+  { id: 'aud-2', at: day(-2), actor: 'Agent d’analyse des compétences', action: 'Détection d’écart', target: 'gap-cicd', detail: 'Écart CI/CD 25 → 70, confiance 0,66', ip: '10.0.4.18' },
   { id: 'aud-3', at: day(-3), actor: 'Orchestrateur', action: 'Mise en attente', target: 'gap-kubernetes', detail: 'Écart différé pendant une formation active', ip: '10.0.4.10' },
   { id: 'aud-4', at: day(-20), actor: 'Ahmed El Fellah', action: 'Validation de parcours', target: 'req-archive-1', detail: 'Parcours Git approuvé après revue complète', ip: '10.0.8.22' },
 ];
@@ -642,7 +655,7 @@ export const INITIAL_TEAM: TeamMember[] = [
     name: 'Soufiane Mechta',
     email: 'soufiane.mechta@workadapt.demo',
     role: 'EMPLOYEE',
-    jobTitle: 'Développeur backend',
+    jobTitle: 'Développeur serveur',
     department: 'Ingénierie',
     status: 'ACTIVE',
     skillsTracked: 6,
@@ -711,7 +724,7 @@ export const INITIAL_TEAM: TeamMember[] = [
  * Veille technologique
  * ------------------------------------------------------------------ */
 
-export const INITIAL_TECH_SIGNALS: TechSignal[] = [
+export const INITIAL_TECH_SIGNALS: TechSignal[] = owned<TechSignal>('emp-0001', [
   {
     id: 'tw-1',
     technology: 'Dev Containers',
@@ -733,7 +746,7 @@ export const INITIAL_TECH_SIGNALS: TechSignal[] = [
     skillLabel: 'CI/CD',
     maturity: 'ADOPTION',
     relevance: 'HAUTE',
-    why: 'Relie les pipelines et la production avec des traces communes.',
+    why: 'Relie les chaînes d’intégration et la production avec des traces communes.',
     source: 'Veille interne · communauté open source',
     at: day(-3),
     suggestedAction: 'Proposer une découverte guidée avant un parcours projet.',
@@ -754,7 +767,7 @@ export const INITIAL_TECH_SIGNALS: TechSignal[] = [
   {
     id: 'tw-4',
     technology: 'Angular signals avancés',
-    category: 'Frontend',
+    category: 'Interfaces',
     skillCode: 'angular',
     skillLabel: 'Angular',
     maturity: 'ADOPTION',
@@ -777,7 +790,7 @@ export const INITIAL_TECH_SIGNALS: TechSignal[] = [
     at: day(-8),
     suggestedAction: 'Ajouter un deck de drills dédié.',
   },
-];
+]);
 
 /* ------------------------------------------------------------------ *
  * Pilotage : KPI du CDC §3.3
@@ -795,7 +808,7 @@ export const KPIS: Kpi[] = [
   { code: 'SKILL_GAIN', label: 'Amélioration des compétences', definition: 'Niveau après formation − niveau avant', target: 15, current: 17, unit: 'POINTS', direction: 'UP' },
   { code: 'GAP_REDUCTION', label: 'Réduction des écarts', definition: '(Écart initial − écart final) ÷ écart initial', target: 30, current: 34, unit: 'PERCENT', direction: 'UP' },
   { code: 'LOOP_COMPLETION', label: 'Taux de boucles terminées', definition: 'Boucles complètes ÷ boucles commencées', target: 60, current: 58, unit: 'PERCENT', direction: 'UP' },
-  { code: 'WORKFLOW_SUCCESS', label: 'Taux de réussite des workflows', definition: 'Workflows sans erreur bloquante ÷ workflows lancés', target: 90, current: 92, unit: 'PERCENT', direction: 'UP' },
+  { code: 'WORKFLOW_SUCCESS', label: 'Taux de réussite des flux de travail', definition: 'Flux de travail sans erreur bloquante ÷ flux de travail lancés', target: 90, current: 92, unit: 'PERCENT', direction: 'UP' },
   { code: 'API_LATENCY', label: 'Temps de réponse API', definition: 'Opérations standards', target: 2, current: 1.4, unit: 'SECONDS', direction: 'DOWN' },
 ];
 
@@ -857,13 +870,13 @@ export const REPORT_EXPORTS: ReportExport[] = [
 
 export const AGENTS: AgentStatus[] = [
   { code: 'ORCH', name: 'Orchestrateur', mission: 'Coordonne l’ordre des étapes, gère les états et la reprise.', health: 'RUNNING', lastRun: day(0), durationMs: 240, successRate: 99 },
-  { code: 'DATA_COLLECTION', name: 'Data Collection Agent', mission: 'Organise les informations des six sources autorisées.', health: 'RUNNING', lastRun: day(0), durationMs: 1820, successRate: 96 },
-  { code: 'SKILL_INTELLIGENCE', name: 'Skill Intelligence Agent', mission: 'Identifie les compétences, estime les niveaux et détecte les écarts.', health: 'RUNNING', lastRun: day(0), durationMs: 2140, successRate: 94 },
-  { code: 'TECHNOLOGY_WATCH', name: 'Technology Watch Agent', mission: 'Suit les technologies émergentes et leur pertinence par métier.', health: 'IDLE', lastRun: day(-2), durationMs: 960, successRate: 97 },
-  { code: 'LEARNING_PLANNER', name: 'Learning Planner Agent', mission: 'Génère les parcours selon l’écart et le format choisi.', health: 'IDLE', lastRun: day(-1), durationMs: 3400, successRate: 91 },
-  { code: 'SUPERVISOR_WORKFLOW', name: 'Supervisor Workflow Agent', mission: 'Organise la validation humaine et enregistre les décisions.', health: 'WAITING_APPROVAL', lastRun: day(-1), durationMs: 320, successRate: 100 },
-  { code: 'TRAINING', name: 'Training Agent', mission: 'Met à disposition les unités et suit la progression réelle.', health: 'IDLE', lastRun: day(-4), durationMs: 410, successRate: 98 },
-  { code: 'ASSESSMENT_CERTIFICATION', name: 'Assessment & Certification Agent', mission: 'Évalue les acquis, produit le rapport et le certificat conditionnel.', health: 'IDLE', lastRun: day(-4), durationMs: 2860, successRate: 93 },
+  { code: 'DATA_COLLECTION', name: 'Agent de collecte', mission: 'Organise les informations des six sources autorisées.', health: 'RUNNING', lastRun: day(0), durationMs: 1820, successRate: 96 },
+  { code: 'SKILL_INTELLIGENCE', name: 'Agent d’analyse des compétences', mission: 'Identifie les compétences, estime les niveaux et détecte les écarts.', health: 'RUNNING', lastRun: day(0), durationMs: 2140, successRate: 94 },
+  { code: 'TECHNOLOGY_WATCH', name: 'Agent de veille technologique', mission: 'Suit les technologies émergentes et leur pertinence par métier.', health: 'IDLE', lastRun: day(-2), durationMs: 960, successRate: 97 },
+  { code: 'LEARNING_PLANNER', name: 'Agent de conception pédagogique', mission: 'Génère les parcours selon l’écart et le format choisi.', health: 'IDLE', lastRun: day(-1), durationMs: 3400, successRate: 91 },
+  { code: 'SUPERVISOR_WORKFLOW', name: 'Agent de validation supervisée', mission: 'Organise la validation humaine et enregistre les décisions.', health: 'WAITING_APPROVAL', lastRun: day(-1), durationMs: 320, successRate: 100 },
+  { code: 'TRAINING', name: 'Agent de formation', mission: 'Met à disposition les unités et suit la progression réelle.', health: 'IDLE', lastRun: day(-4), durationMs: 410, successRate: 98 },
+  { code: 'ASSESSMENT_CERTIFICATION', name: 'Agent d’évaluation et de certification', mission: 'Évalue les acquis, produit le rapport et le certificat conditionnel.', health: 'IDLE', lastRun: day(-4), durationMs: 2860, successRate: 93 },
 ];
 
 export const WORKFLOWS: WorkflowRun[] = [
@@ -916,7 +929,7 @@ export const WORKFLOWS: WorkflowRun[] = [
 export const AGENT_EXCHANGES: AgentExchange[] = [
   { id: 'ex-1', at: day(0), from: 'DATA_COLLECTION', to: 'SKILL_INTELLIGENCE', topic: 'Jeu d’événements normalisé (842 événements)', status: 'DELIVERED' },
   { id: 'ex-2', at: day(0), from: 'SKILL_INTELLIGENCE', to: 'ORCH', topic: 'Écart Docker 45 → 80, confiance 0,72', status: 'DELIVERED' },
-  { id: 'ex-3', at: day(-1), from: 'LEARNING_PLANNER', to: 'SUPERVISOR_WORKFLOW', topic: 'Parcours pratique Docker (12 h, 8 labs)', status: 'DELIVERED' },
+  { id: 'ex-3', at: day(-1), from: 'LEARNING_PLANNER', to: 'SUPERVISOR_WORKFLOW', topic: 'Parcours pratique Docker (12 h, 8 ateliers)', status: 'DELIVERED' },
   { id: 'ex-4', at: day(-1), from: 'SUPERVISOR_WORKFLOW', to: 'ORCH', topic: 'En attente de décision humaine', status: 'PENDING' },
 ];
 
@@ -925,7 +938,7 @@ export const AGENT_EXCHANGES: AgentExchange[] = [
  * ------------------------------------------------------------------ */
 
 export const DOMAIN_OPTIONS: { value: Domain; label: string; example: string }[] = [
-  { value: 'DEV', label: 'Développement logiciel', example: 'Backend, frontend, mobile, DevOps' },
+  { value: 'DEV', label: 'Développement logiciel', example: 'Développement serveur, interfaces, mobile, DevOps' },
   { value: 'DATA_AI', label: 'Data / IA', example: 'Data engineering, analyse, machine learning' },
   { value: 'ECOMMERCE', label: 'E-commerce', example: 'Acquisition, conversion, catalogue, logistique' },
   { value: 'AUDIT_QUALITY', label: 'Audit / Qualité', example: 'Audit interne, conformité, assurance qualité' },
@@ -940,18 +953,18 @@ export const DOMAIN_OPTIONS: { value: Domain; label: string; example: string }[]
  * Collecte : événements et exécutions initiales
  * ------------------------------------------------------------------ */
 
-export const INITIAL_COLLECTION_EVENTS: CollectionEvent[] = [
+export const INITIAL_COLLECTION_EVENTS: CollectionEvent[] = owned<CollectionEvent>('emp-0001', [
   {
     id: 'evt-0001',
     at: day(0),
     source: 'COLLECTOR',
     type: 'APP_USAGE',
     label: 'Docker Desktop — 2 h 40 cette semaine',
-    detail: 'Sessions de travail sur des conteneurs locaux, sans build multi-étapes observé.',
+    detail: 'Sessions de travail sur des conteneurs locaux, sans construction multi-étapes observée.',
     skillCodes: ['docker'],
     observed: true,
     confidence: 0.9,
-    proof: 'Journal du Desktop Collector · 6 sessions',
+    proof: 'Journal du Collecteur local · 6 sessions',
   },
   {
     id: 'evt-0002',
@@ -970,7 +983,7 @@ export const INITIAL_COLLECTION_EVENTS: CollectionEvent[] = [
     at: day(-2),
     source: 'CONNECTED_APP',
     type: 'PROJECT_ACTIVITY',
-    label: 'Deux pipelines en échec non traités',
+    label: 'Deux chaînes d’intégration en échec non traitées',
     detail: 'Exécutions GitHub Actions en échec, aucune correction associée.',
     skillCodes: ['cicd'],
     observed: true,
@@ -987,7 +1000,7 @@ export const INITIAL_COLLECTION_EVENTS: CollectionEvent[] = [
     skillCodes: ['tests'],
     observed: true,
     confidence: 0.75,
-    proof: 'Journal du Desktop Collector · 2 sessions',
+    proof: 'Journal du Collecteur local · 2 sessions',
   },
   {
     id: 'evt-0005',
@@ -995,7 +1008,7 @@ export const INITIAL_COLLECTION_EVENTS: CollectionEvent[] = [
     source: 'CV',
     type: 'PROFILE_UPDATE',
     label: 'CV importé — CV_Soufiane_Mechta.pdf',
-    detail: '4 ans de développement backend Java/Spring, expérience Angular 2 ans.',
+    detail: '4 ans de développement serveur Java/Spring, expérience Angular 2 ans.',
     skillCodes: ['docker', 'angular', 'git'],
     observed: false,
     confidence: 0.6,
@@ -1026,9 +1039,9 @@ export const INITIAL_COLLECTION_EVENTS: CollectionEvent[] = [
     confidence: 0.8,
     proof: 'Registre de formation interne',
   },
-];
+]);
 
-export const INITIAL_COLLECTION_RUNS: CollectionRun[] = [
+export const INITIAL_COLLECTION_RUNS: CollectionRun[] = owned<CollectionRun>('emp-0001', [
   {
     id: 'run-0001',
     kind: 'INITIAL',
@@ -1057,10 +1070,10 @@ export const INITIAL_COLLECTION_RUNS: CollectionRun[] = [
     eventsCount: 0,
     newGaps: 0,
     status: 'FAILED',
-    error: 'Desktop Collector injoignable (agent arrêté sur le poste).',
+    error: 'Collecteur local injoignable (agent arrêté sur le poste).',
     sourcesUsed: ['COLLECTOR'],
   },
-];
+]);
 
 /* ------------------------------------------------------------------ *
  * Demandes de formation initiales (parcours généré avant validation)
@@ -1071,7 +1084,7 @@ export const INITIAL_TRAINING_REQUESTS: TrainingRequest[] = [
     id: 'treq-0001',
     employeeId: 'emp-0001',
     employeeName: 'Soufiane Mechta',
-    gapId: 'gap-docker',
+    gapId: 'gap-emp-0001-docker',
     skillCode: 'docker',
     skillLabel: 'Docker',
     subject: 'Conteneurisation d’applications',

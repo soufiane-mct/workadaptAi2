@@ -1,4 +1,4 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import {
   EvidenceRef,
   FORMAT_LABELS,
@@ -21,6 +21,7 @@ import { buildProgram } from './training/builders';
 import { BuildContext, capstoneOf, isoTimestamp, programUnits } from './training/helpers';
 import { WorkflowStateService } from './workflow-state.service';
 import { AuthService } from '../auth/auth.service';
+import { DemoStateStore } from './demo-state.store';
 
 /**
  * Domaine Formation.
@@ -43,6 +44,7 @@ export class TrainingService {
   private readonly workflow = inject(WorkflowStateService);
   private readonly stepVerification = inject(StepVerificationService);
   private readonly auth = inject(AuthService);
+  private readonly store = inject(DemoStateStore);
 
   /**
    * Acteur humain d'une décision de supervision.
@@ -54,9 +56,15 @@ export class TrainingService {
     return this.auth.user()?.name ?? 'Superviseur';
   }
 
-  private readonly _requests = signal<TrainingRequest[]>([...INITIAL_TRAINING_REQUESTS]);
-  private readonly _programs = signal<TrainingProgram[]>([]);
-  private readonly _progresses = signal<TrainingProgress[]>([]);
+  private readonly _requests = signal<TrainingRequest[]>(
+    this.store.read<TrainingRequest[]>('training.requests', INITIAL_TRAINING_REQUESTS),
+  );
+  private readonly _programs = signal<TrainingProgram[]>(
+    this.store.read<TrainingProgram[]>('training.programs', []),
+  );
+  private readonly _progresses = signal<TrainingProgress[]>(
+    this.store.read<TrainingProgress[]>('training.progresses', []),
+  );
 
   readonly requests = this._requests.asReadonly();
   readonly programs = this._programs.asReadonly();
@@ -76,7 +84,8 @@ export class TrainingService {
 
   constructor() {
     // Génère le curriculum des demandes de démonstration avant toute validation.
-    for (const request of INITIAL_TRAINING_REQUESTS) {
+    // Une demande restaurée sans curriculum est réparée de la même manière.
+    for (const request of this._requests()) {
       if (this.programFor(request.id)) {
         continue;
       }
@@ -88,6 +97,12 @@ export class TrainingService {
       ]);
       this.patchRequest(request.id, { trainingId: program.id });
     }
+
+    effect(() => {
+      this.store.write('training.requests', this._requests());
+      this.store.write('training.programs', this._programs());
+      this.store.write('training.progresses', this._progresses());
+    });
   }
 
   /* ---------------------------------------------------------------- *
@@ -156,8 +171,11 @@ export class TrainingService {
     const requestId = `treq-${Date.now()}`;
     const request: TrainingRequest = {
       id: requestId,
-      employeeId: this.profileService.employeeId(),
-      employeeName: this.profileService.fullName(),
+      employeeId: gap.employeeId,
+      employeeName:
+        gap.employeeId === this.profileService.employeeId()
+          ? this.profileService.fullName()
+          : 'Collaborateur',
       gapId: gap.id,
       skillCode: gap.skillCode,
       skillLabel: gap.skillLabel,
@@ -201,7 +219,7 @@ export class TrainingService {
     }
 
     this.audit.log({
-      actor: 'Learning Planner Agent',
+      actor: 'Agent de conception pédagogique',
       action: 'Génération de parcours',
       target: requestId,
       detail: `${program.title} — ${FORMAT_LABELS[format]}, ${program.estimatedHours} h, ${programUnits(program).length} unités, généré avant validation.`,
@@ -216,7 +234,7 @@ export class TrainingService {
     if (!existing) {
       return undefined;
     }
-    const gap = this.gapService.byId(existing.gapId);
+    const gap = this.gapService.byId(existing.gapId, existing.employeeId);
     if (!gap) {
       return undefined;
     }
@@ -276,7 +294,7 @@ export class TrainingService {
     });
     const gap = this.gapService.byId(request.gapId);
     if (gap) {
-      this.gapService.reopen(gap.id);
+      this.gapService.reopen(gap.id, request.employeeId);
     }
 
     this.notifications.notify({
@@ -404,7 +422,7 @@ export class TrainingService {
       decidedAt: request.decidedAt ?? isoTimestamp(),
     });
 
-    this.gapService.markInTraining(request.gapId, requestId);
+    this.gapService.markInTraining(request.gapId, requestId, request.employeeId);
     this.workflow.setActiveTraining(requestId);
 
     this.notifications.notify({
@@ -417,7 +435,7 @@ export class TrainingService {
     });
 
     this.audit.log({
-      actor: 'Training Agent',
+      actor: 'Agent de formation',
       action: 'Démarrage de formation',
       target: requestId,
       detail: `${program.title} démarré, ${units.length} unités à réaliser.`,
@@ -558,6 +576,7 @@ export class TrainingService {
           : progress,
       ),
     );
+    this.persistTraining();
   }
 
   /** Dépose et valide la preuve de fin. Condition nécessaire pour terminer. */
@@ -598,9 +617,10 @@ export class TrainingService {
           : item,
       ),
     );
+    this.persistTraining();
 
     this.audit.log({
-      actor: 'Training Agent',
+      actor: 'Agent de formation',
       action: 'Preuve de fin déposée',
       target: requestId,
       detail: `${this.capstoneLabel(program)} — ${proof.trim().slice(0, 120)}`,
@@ -649,6 +669,7 @@ export class TrainingService {
     });
 
     this.collection.recordTrainingCompletion({
+      employeeId: request.employeeId,
       requestId,
       programTitle: program.title,
       skillCode: request.skillCode,
@@ -674,7 +695,7 @@ export class TrainingService {
     });
 
     this.audit.log({
-      actor: 'Training Agent',
+      actor: 'Agent de formation',
       action: 'Fin de formation',
       target: requestId,
       detail: `${program.title} terminé — ${progress.units.length} unités, ${Math.round(progress.minutesSpent / 60)} h, preuve déposée.`,
@@ -704,7 +725,7 @@ export class TrainingService {
         supervisorNote: reason,
       });
       this.audit.log({
-        actor: 'Assessment & Certification Agent',
+        actor: 'Agent d’évaluation et de certification',
         action: 'Remédiation close',
         target: request.id,
         detail: reason,
@@ -728,7 +749,9 @@ export class TrainingService {
     format: TrainingFormat;
     reason: string;
   }): TrainingRequest | undefined {
-    const gap = this.gapService.byId(input.gapId);
+    const previous = this.requestById(input.previousRequestId);
+    const employeeId = previous?.employeeId ?? this.profileService.employeeId();
+    const gap = this.gapService.byId(input.gapId, employeeId);
     if (!gap) {
       return undefined;
     }
@@ -813,7 +836,7 @@ export class TrainingService {
         (unit) => unit.status === 'DONE' && unit.checkpointPassed === false,
       );
       if (failedCheckpoints.length > 0) {
-        missing.push(`${failedCheckpoints.length} checkpoint(s) formatif(s) non validé(s)`);
+        missing.push(`${failedCheckpoints.length} point(s) de contrôle formatif(s) non validé(s)`);
       }
     }
     if (progress.minutesSpent < criteria.minMinutes) {
@@ -953,6 +976,19 @@ export class TrainingService {
     this._requests.update((requests) =>
       requests.map((request) => (request.id === id ? { ...request, ...patch } : request)),
     );
+    this.persistTraining();
+  }
+
+  /**
+   * Écrit immédiatement l'état Formation dans le stockage local.
+   *
+   * Les effets Angular restent un filet de sécurité, mais une action métier
+   * doit être durable même si l'onglet est rechargé immédiatement après.
+   */
+  private persistTraining(): void {
+    this.store.write('training.requests', this._requests());
+    this.store.write('training.programs', this._programs());
+    this.store.write('training.progresses', this._progresses());
   }
 
   private notifyQueuedGaps(): void {
@@ -987,6 +1023,42 @@ export class TrainingService {
 
   capstoneDeliverable(program: TrainingProgram): string {
     return capstoneOf(program).deliverable;
+  }
+
+  /** Efface le parcours d'un collaborateur sans toucher aux autres espaces. */
+  clearEmployee(employeeId: string): void {
+    const requestIds = new Set(
+      this._requests()
+        .filter((request) => request.employeeId === employeeId)
+        .map((request) => request.id),
+    );
+    this._requests.update((requests) =>
+      requests.filter((request) => request.employeeId !== employeeId),
+    );
+    this._programs.update((programs) =>
+      programs.filter((program) => !requestIds.has(program.requestId)),
+    );
+    this._progresses.update((progresses) =>
+      progresses.filter((progress) => !requestIds.has(progress.requestId)),
+    );
+    this.persistTraining();
+  }
+
+  /** Rétablit le jeu de formations de démonstration. */
+  reset(): void {
+    this._requests.set(INITIAL_TRAINING_REQUESTS.map((request) => ({ ...request })));
+    this._programs.set([]);
+    this._progresses.set([]);
+    for (const request of this._requests()) {
+      const program = this.build(request);
+      this._programs.update((programs) => [...programs, program]);
+      this._progresses.update((progresses) => [
+        ...progresses,
+        this.initProgress(request.id, program),
+      ]);
+      this.patchRequest(request.id, { trainingId: program.id });
+    }
+    this.persistTraining();
   }
 
   /** Preuve d'écart réutilisable par les écrans de détail. */

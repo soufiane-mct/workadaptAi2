@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { Router, RouterLink, ActivatedRoute } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Role, ROLE_LABELS } from '../../core/models';
 import { AuthService } from '../../core/auth/auth.service';
+import { DEMO_ACCOUNTS } from '../../core/data/mock-data';
 
 const ROLES: Role[] = ['EMPLOYEE', 'MANAGER', 'RH', 'ADMIN'];
 
@@ -28,26 +29,28 @@ export class Login {
   readonly labels = ROLE_LABELS;
   readonly descriptions = DESCRIPTIONS;
   readonly selected = signal<Role>('EMPLOYEE');
-  readonly email = signal('soufiane.mechta@workadapt.demo');
-  readonly password = signal('demo');
+  readonly selectedAccount = computed(() =>
+    DEMO_ACCOUNTS.find((account) => account.role === this.selected()),
+  );
+  readonly registeredAccounts = this.auth.registeredAccounts;
 
   select(role: Role): void {
     this.selected.set(role);
-    const emails: Record<Role, string> = {
-      EMPLOYEE: 'soufiane.mechta@workadapt.demo',
-      MANAGER: 'ahmed.elfellah@workadapt.demo',
-      RH: 'kawtar.souiyah@workadapt.demo',
-      ADMIN: 'yassine.berrada@workadapt.demo',
-    };
-    this.email.set(emails[role]);
   }
 
   submit(event: Event): void {
     event.preventDefault();
-    if (!this.email().trim() || !this.password().trim()) {
-      return;
-    }
     this.auth.login(this.selected());
+    this.navigate();
+  }
+
+  openRegisteredAccount(id: string): void {
+    if (this.auth.loginById(id)) {
+      this.navigate();
+    }
+  }
+
+  private navigate(): void {
     const redirect = this.route.snapshot.queryParamMap.get('redirect');
     void this.router.navigateByUrl(redirect ?? '/app/tableau-de-bord');
   }

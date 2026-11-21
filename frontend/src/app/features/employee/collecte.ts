@@ -87,7 +87,7 @@ import { DataService } from '../../core/data/data.service';
                   @if (event.skillCodes.length > 0) {
                     <div class="chips" style="margin-top: 6px">
                       @for (code of event.skillCodes; track code) {
-                        <span class="wa-chip wa-chip--info">{{ code }}</span>
+                        <span class="wa-chip wa-chip--info">{{ skillLabel(code) }}</span>
                       }
                     </div>
                   }
@@ -160,7 +160,7 @@ import { DataService } from '../../core/data/data.service';
         <div class="form-grid form-grid--2">
           <div class="kv">
             <span>Fin de formation</span>
-            <strong>TRAINING_COMPLETION</strong>
+            <strong>Fin de formation réinjectée</strong>
             <p class="wa-small wa-muted" style="margin: 4px 0 0">
               Recalcule le niveau et passe l’écart en « partiellement résolu » : seule
               l’évaluation peut prouver la maîtrise.
@@ -168,7 +168,7 @@ import { DataService } from '../../core/data/data.service';
           </div>
           <div class="kv">
             <span>Résultat d’évaluation</span>
-            <strong>EVALUATION_RESULT</strong>
+            <strong>Résultat d’évaluation réinjecté</strong>
             <p class="wa-small wa-muted" style="margin: 4px 0 0">
               Fixe le niveau réel, clôt l’écart en cas de réussite, sinon le maintient ouvert et
               déclenche une remédiation.
@@ -271,13 +271,17 @@ export class CollectePage {
   simulateFailure(): void {
     this.data.runDailyCollection({ simulateFailure: true });
     this.message.set(
-      'Échec simulé : le Desktop Collector n’a pas répondu. Les autres sources ont été conservées.',
+      'Échec simulé : le Collecteur local n’a pas répondu. Les autres sources ont été conservées.',
     );
   }
 
   retry(): void {
     const run = this.data.retryCollection();
     this.message.set(`Reprise effectuée : ${run.eventsCount} événement(s) collecté(s).`);
+  }
+
+  skillLabel(code: string): string {
+    return this.data.skillByCode(code)?.label ?? code;
   }
 
   sourceLabel(source: CollectionSource): string {

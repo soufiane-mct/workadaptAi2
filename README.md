@@ -1,4 +1,41 @@
-# WorkAdapt Agent
+# WorkAdapt
+
+Ce dépôt contient deux composants volontairement indépendants :
+
+- `frontend/` : produit de démonstration Angular, autonome, persistant dans le
+  navigateur et entièrement en français ;
+- la racine et `server/` : agent de collecte Python et serveur d'ingestion,
+  conservés dans leur périmètre propre.
+
+## Frontend Angular — démonstration du produit
+
+```powershell
+cd frontend
+npm ci
+npm start
+```
+
+L'application est disponible sur `http://localhost:4200`. Elle couvre la
+collecte permanente, la détection d'écarts, sept formats de formation, cinq
+méthodes d'évaluation après la formation, le score pondéré sur 100, la
+certification interne après réussite et la reprise non bloquante après échec.
+
+Les espaces collaborateurs sont persistés et isolés par `employeeId` ; les
+comptes, la session et les données sont conservés localement. Les vues RH
+sont agrégées, le journal d'audit et l'annuaire sont réservés à
+l'administrateur, et l'approbation des parcours au superviseur.
+
+Aucune pile backend n'est choisie ou branchée. Le collecteur Python n'est pas
+le backend de cette démonstration frontend.
+
+Documentation :
+
+- [README du frontend](frontend/README.md)
+- [Guide de démonstration](frontend/docs/guide-demo.md)
+- [Matrice des rôles et de la propriété des données](frontend/docs/matrice-roles-ownership.md)
+- [Traçabilité des exigences](frontend/docs/tracabilite.md)
+
+## Agent de collecte Python
 
 Agent de collecte d'activité **autonome et multi-plateforme**. Aucune dépendance
 à ActivityWatch : l'agent lit directement l'OS. Windows est pleinement

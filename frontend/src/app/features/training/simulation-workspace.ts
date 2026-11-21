@@ -8,6 +8,18 @@ import {
 import { StepVerdict } from './step-verdict';
 import { WorkspaceBase } from './workspace-base';
 
+interface SimulationAnswer {
+  label: string;
+  outcome: string;
+  score: number;
+  feedback: string;
+}
+
+interface SimulationUnitState {
+  answers: Record<string, SimulationAnswer>;
+  debriefs: Record<number, string>;
+}
+
 @Component({
   selector: 'wa-simulation-workspace',
   imports: [StepVerdict],
@@ -398,7 +410,7 @@ export class SimulationWorkspace extends WorkspaceBase {
     this.sp().scenarios.find((item) => item.id === this.activeUnit()?.id),
   );
 
-  readonly answers = signal<Record<string, { label: string; outcome: string; score: number; feedback: string }>>({});
+  readonly answers = signal<Record<string, SimulationAnswer>>({});
   readonly debriefs = signal<Record<string, Record<number, string>>>({});
 
   readonly consoleLines = computed(() => {
@@ -421,7 +433,40 @@ export class SimulationWorkspace extends WorkspaceBase {
     return this.sp().scenarios.find((item) => item.id === unitId);
   }
 
+  protected override restoreUnitState(unitId: string): void {
+    const scenario = this.scenarioFor(unitId);
+    const state = this.unitState<SimulationUnitState>(unitId);
+
+    this.answers.update((map) => {
+      const next = { ...map };
+      for (const decision of scenario?.decisions ?? []) {
+        if (state?.answers[decision.id]) {
+          next[decision.id] = state.answers[decision.id];
+        } else {
+          delete next[decision.id];
+        }
+      }
+      return next;
+    });
+
+    if (state) {
+      this.debriefs.update((map) => ({ ...map, [unitId]: { ...state.debriefs } }));
+      return;
+    }
+
+    // Relecture d'un format antérieur : le débrief était stocké comme texte.
+    const legacy = this.savedNotes(unitId);
+    const restored: Record<number, string> = {};
+    const lines = legacy.split('\n');
+    scenario?.debriefQuestions.forEach((question, index) => {
+      const line = lines.find((candidate) => candidate.startsWith(question));
+      restored[index] = line ? line.slice(question.length).trim() : index === 0 ? legacy : '';
+    });
+    this.debriefs.update((map) => ({ ...map, [unitId]: restored }));
+  }
+
   openScenario(unitId: string): void {
+    this.saveNotes();
     this.select(unitId);
   }
 
@@ -445,6 +490,7 @@ export class SimulationWorkspace extends WorkspaceBase {
         feedback: option.feedback,
       },
     }));
+    this.saveSimulationState(scenarioId);
   }
 
   debrief(scenarioId: string): Record<number, string> {
@@ -456,6 +502,28 @@ export class SimulationWorkspace extends WorkspaceBase {
       ...map,
       [scenarioId]: { ...(map[scenarioId] ?? {}), [index]: value },
     }));
+    this.saveSimulationState(scenarioId);
+  }
+
+  private saveSimulationState(scenarioId: string): void {
+    const scenario = this.scenarioFor(scenarioId);
+    if (!scenario) {
+      return;
+    }
+    const answers = Object.fromEntries(
+      scenario.decisions
+        .map((decision) => [decision.id, this.answers()[decision.id]] as const)
+        .filter((entry): entry is readonly [string, SimulationAnswer] => Boolean(entry[1])),
+    );
+    const debriefs = this.debriefs()[scenarioId] ?? {};
+    const joined = scenario.debriefQuestions
+      .map((question, index) => `${question} ${debriefs[index] ?? ''}`)
+      .join('\n');
+    this.saveUnitState(
+      scenarioId,
+      { answers, debriefs } satisfies SimulationUnitState,
+      joined,
+    );
   }
 
   answeredCount(scenario: SimulationScenario): number {
@@ -484,7 +552,7 @@ export class SimulationWorkspace extends WorkspaceBase {
     const joined = scenario.debriefQuestions
       .map((question, index) => `${question} ${this.debrief(scenario.id)[index] ?? ''}`)
       .join('\n');
-    this.data.saveTrainingNotes(this.request().id, scenario.id, joined);
+    this.saveSimulationState(scenario.id);
 
     const evidence: StepEvidence = {
       unitId: scenario.id,

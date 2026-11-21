@@ -264,9 +264,22 @@ import { SkillBar } from '../../shared/ui/skill-bar';
           </section>
 
           <section class="panel">
+            <h2>Données de démonstration</h2>
+            <p class="panel__sub">
+              Efface uniquement votre espace de démonstration : profil, écarts, formations,
+              évaluations, certificats et notifications personnelles. Votre compte reste
+              connecté ; les espaces des autres collaborateurs ne sont pas touchés.
+            </p>
+            <button class="btn btn--danger" type="button" (click)="eraseWorkspace()">
+              <span class="material-symbols-outlined">delete_forever</span>
+              Effacer mon espace
+            </button>
+          </section>
+
+          <section class="panel">
             <h2>Transmission à l’IA</h2>
             <p class="panel__sub" style="margin-bottom: 10px">
-              Le profil est envoyé au Skill Intelligence Agent à chaque enregistrement. La
+              Le profil est envoyé au Agent d’analyse des compétences à chaque enregistrement. La
               réponse dépend du consentement.
             </p>
             <button class="btn" type="button" (click)="sendToAi()">
@@ -460,7 +473,7 @@ export class ProfilePage {
     this.saved.set(send.accepted);
     this.message.set(
       send.accepted
-        ? 'Profil enregistré et transmis au Skill Intelligence Agent. Le diagnostic sera recalculé.'
+        ? 'Profil enregistré et transmis au Agent d’analyse des compétences. Le diagnostic sera recalculé.'
         : send.summary,
     );
   }
@@ -483,6 +496,30 @@ export class ProfilePage {
     this.consentShare.set(profile.consent.shareWithSupervisor);
     this.pastTrainings.set([...profile.pastTrainings]);
     this.message.set('Modifications non enregistrées annulées.');
+    this.saved.set(true);
+  }
+
+  /**
+   * Efface l'espace personnel après une confirmation explicite.
+   *
+   * Le compte et la session sont conservés ; le collaborateur peut ensuite
+   * reconstruire un espace vierge à partir de son profil.
+   */
+  eraseWorkspace(): void {
+    const confirmed = window.confirm(
+      'Effacer toutes les données de votre espace de démonstration ? Cette action est irréversible et votre compte restera connecté.',
+    );
+    if (!confirmed) {
+      this.message.set('L’effacement a été annulé : votre espace est inchangé.');
+      this.saved.set(true);
+      return;
+    }
+
+    this.data.resetEmployeeWorkspace();
+    this.reset();
+    this.message.set(
+      'Votre espace de démonstration a été effacé. Votre compte est conservé et reste connecté.',
+    );
     this.saved.set(true);
   }
 

@@ -116,12 +116,9 @@ const ACCENTS: Record<EvaluationMethod, { accent: string; soft: string; head: st
                 {{ rep.decision === 'REUSSI' ? 'Réussi' : 'Non réussi' }}
               </span>
               <h2 style="margin-top: 6px">
-                {{ rep.decision === 'REUSSI' ? 'Maîtrise démontrée' : 'Seuil non atteint' }}
+                {{ rep.decision === 'REUSSI' ? 'Maîtrise démontrée' : failureTitle(rep) }}
               </h2>
-              <p>
-                {{ labels[rep.method] }} · score {{ rep.score }}/100 pour un seuil de
-                {{ rep.passScore }}. Niveau {{ rep.levelBefore }} → {{ rep.levelAfter }}/100.
-              </p>
+              <p>{{ failureSummary(rep) }}</p>
             </div>
           </div>
 
@@ -185,7 +182,7 @@ const ACCENTS: Record<EvaluationMethod, { accent: string; soft: string; head: st
           <section class="eval-panel cert">
             <span class="material-symbols-outlined cert__icon">workspace_premium</span>
             <div>
-              <h2>Certificat délivré — {{ cert.id }}</h2>
+              <h2>Certificat délivré</h2>
               <p class="eval-panel__sub" style="margin-bottom: 0">
                 {{ cert.formationTitle }} · {{ cert.score }}/100 · niveau {{ cert.levelBefore }} →
                 {{ cert.levelAfter }}/100. Le résultat a été réinjecté dans la collecte et l’écart
@@ -398,8 +395,8 @@ export class EvaluationWorkspace {
 
   readonly requestId = input.required<string>();
 
-  readonly request = computed(() => this.data.requestById(this.requestId()));
-  readonly program = computed(() => this.data.programFor(this.requestId()));
+  readonly request = computed(() => this.data.myRequestById(this.requestId()));
+  readonly program = computed(() => this.data.myProgramFor(this.requestId()));
   /**
    * Mode reprise : l'employé a échoué, il relit son parcours et revient
    * générer une nouvelle épreuve. Le sélecteur des cinq méthodes
@@ -407,11 +404,11 @@ export class EvaluationWorkspace {
    */
   readonly retryMode = signal(false);
   readonly record = computed(() =>
-    this.retryMode() ? undefined : this.data.evaluationFor(this.requestId()),
+    this.retryMode() ? undefined : this.data.myEvaluationFor(this.requestId()),
   );
   readonly report = computed(() => {
     const record = this.record();
-    return record ? this.data.reportFor(record.id) : undefined;
+    return record ? this.data.myReportFor(record.id) : undefined;
   });
   /**
    * Brouillon de réponses de l'épreuve en cours.
@@ -423,7 +420,7 @@ export class EvaluationWorkspace {
     const record = this.record();
     return record ? this.data.evaluationDraft(record.id) : EMPTY_ANSWERS;
   });
-  readonly certificate = computed(() => this.data.certificateFor(this.requestId()));
+  readonly certificate = computed(() => this.data.myCertificateFor(this.requestId()));
   readonly guard = computed(() => this.data.evaluationService.canEvaluate(this.requestId()));
   readonly attempts = computed(() => this.data.evaluationAttempts(this.requestId()));
 
@@ -453,6 +450,21 @@ export class EvaluationWorkspace {
 
   percentOf(earned: number, max: number): number {
     return max === 0 ? 0 : Math.round((earned / max) * 100);
+  }
+
+  /** Distingue un seuil non atteint d'une exigence bloquante non satisfaite. */
+  failureTitle(report: EvaluationReport): string {
+    return report.blocking?.length
+      ? 'Exigence bloquante non satisfaite'
+      : 'Seuil de réussite non atteint';
+  }
+
+  failureSummary(report: EvaluationReport): string {
+    const common = `${this.labels[report.method]} · score ${report.score}/100 pour un seuil de ${report.passScore}. Niveau ${report.levelBefore} → ${report.levelAfter}/100.`;
+    if (report.blocking?.length) {
+      return `${common} Malgré ce score, une exigence bloquante n’est pas satisfaite : ${report.blocking[0]}`;
+    }
+    return common;
   }
 
   open(): void {
@@ -490,7 +502,7 @@ export class EvaluationWorkspace {
     if (!report) {
       return;
     }
-    const record = this.data.evaluationFor(this.requestId());
+    const record = this.data.myEvaluationFor(this.requestId());
     if (record) {
       this.data.finalizeEvaluation(record.id);
     }

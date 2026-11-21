@@ -242,14 +242,14 @@ export function programUnits(program: TrainingProgram): ProgramUnit[] {
         id: set.id,
         title: set.title,
         minutes: set.estimatedMinutes,
-        kind: 'Deck',
+        kind: 'Cartes mémoire',
       }));
     case 'PRACTICAL':
       return program.labs.map((lab) => ({
         id: lab.id,
         title: lab.title,
         minutes: lab.estimatedMinutes,
-        kind: 'Lab',
+        kind: 'Atelier',
       }));
     case 'PROJECT':
       return program.milestones.map((milestone) => ({
@@ -277,7 +277,7 @@ export function programUnits(program: TrainingProgram): ProgramUnit[] {
         id: sprint.id,
         title: sprint.title,
         minutes: sprint.estimatedMinutes,
-        kind: 'Sprint',
+        kind: 'Itération',
       }));
     default:
       return [];

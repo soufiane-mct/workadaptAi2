@@ -3,6 +3,12 @@ import { CollaborativeProgram, StepEvidence, TeamSprint } from '../../core/model
 import { StepVerdict } from './step-verdict';
 import { WorkspaceBase } from './workspace-base';
 
+interface CollaborativeUnitState {
+  ratings: Record<string, number>;
+  comments: Record<string, string>;
+  delivered: boolean;
+}
+
 @Component({
   selector: 'wa-collaborative-workspace',
   imports: [StepVerdict],
@@ -83,6 +89,7 @@ import { WorkspaceBase } from './workspace-base';
                   [value]="contribution(current.id)"
                   [disabled]="!editable() || isDone(current.id)"
                   (input)="setContribution(current.id, $any($event.target).value)"
+                  (blur)="saveNotes()"
                   placeholder="Ex. J’ai rédigé la procédure de revue (docs/review.md), animé la revue croisée du 12/03 et corrigé 2 blocages."
                 ></textarea>
               </label>
@@ -420,17 +427,77 @@ export class CollaborativeWorkspace extends WorkspaceBase {
     this.cp().sprints.find((item) => item.id === this.activeUnit()?.id),
   );
 
-  readonly contributions = signal<Record<string, string>>({});
   readonly ratings = signal<Record<string, number>>({});
   readonly comments = signal<Record<string, string>>({});
   readonly delivered = signal<string[]>([]);
 
   readonly peers = [
-    { name: 'Salma Bennani', role: 'Développeuse frontend' },
+    { name: 'Salma Bennani', role: 'Développeuse d’interfaces' },
     { name: 'Youssef Amrani', role: 'Ingénieur plateforme' },
   ];
 
+  protected override restoreUnitState(unitId: string): void {
+    const state = this.unitState<CollaborativeUnitState>(unitId);
+
+    this.ratings.update((map) => {
+      const next = { ...map };
+      for (const peer of this.peers) {
+        const key = `${unitId}:${peer.name}`;
+        if (state?.ratings[key] !== undefined) {
+          next[key] = state.ratings[key];
+        } else {
+          delete next[key];
+        }
+      }
+      return next;
+    });
+
+    this.comments.update((map) => {
+      const next = { ...map };
+      for (const peer of this.peers) {
+        const key = `${unitId}:${peer.name}`;
+        if (state?.comments[key] !== undefined) {
+          next[key] = state.comments[key];
+        } else {
+          delete next[key];
+        }
+      }
+      return next;
+    });
+
+    this.delivered.update((list) => {
+      const without = list.filter((id) => id !== unitId);
+      return state?.delivered ? [...without, unitId] : without;
+    });
+
+    if (state) {
+      return;
+    }
+
+    // Relecture d'un format antérieur : contribution et revues étaient
+    // enregistrées dans une seule note textuelle.
+    const legacy = this.savedNotes(unitId);
+    const reviewsMarker = '\n\nRevues :';
+    const reviewsIndex = legacy.indexOf(reviewsMarker);
+    const contribution =
+      reviewsIndex >= 0 ? legacy.slice(0, reviewsIndex).replace(/^Contribution :\s*/, '') : legacy;
+    this.notes.set(contribution);
+    if (reviewsIndex < 0) {
+      return;
+    }
+    const reviews = legacy.slice(reviewsIndex + reviewsMarker.length);
+    for (const peer of this.peers) {
+      const line = reviews.split('\n').find((candidate) => candidate.startsWith(`${peer.name} —`));
+      const match = line?.match(/ — (\d+)\/5 : (.*)$/);
+      if (match) {
+        this.ratings.update((map) => ({ ...map, [`${unitId}:${peer.name}`]: Number(match[1]) }));
+        this.comments.update((map) => ({ ...map, [`${unitId}:${peer.name}`]: match[2] }));
+      }
+    }
+  }
+
   openSprint(unitId: string): void {
+    this.saveNotes();
     this.select(unitId);
   }
 
@@ -447,11 +514,14 @@ export class CollaborativeWorkspace extends WorkspaceBase {
   }
 
   contribution(sprintId: string): string {
-    return this.contributions()[sprintId] ?? '';
+    return sprintId === this.activeUnit()?.id ? this.notes() : this.savedNotes(sprintId);
   }
 
   setContribution(sprintId: string, value: string): void {
-    this.contributions.update((map) => ({ ...map, [sprintId]: value }));
+    if (sprintId === this.activeUnit()?.id) {
+      this.setNotes(value);
+      this.saveCollaborativeState(sprintId);
+    }
   }
 
   contributionOk(sprint: TeamSprint): boolean {
@@ -464,6 +534,7 @@ export class CollaborativeWorkspace extends WorkspaceBase {
 
   setRating(sprintId: string, peer: string, value: number): void {
     this.ratings.update((map) => ({ ...map, [`${sprintId}:${peer}`]: value }));
+    this.saveCollaborativeState(sprintId);
   }
 
   peerComment(sprintId: string, peer: string): string {
@@ -472,6 +543,7 @@ export class CollaborativeWorkspace extends WorkspaceBase {
 
   setPeerComment(sprintId: string, peer: string, value: string): void {
     this.comments.update((map) => ({ ...map, [`${sprintId}:${peer}`]: value }));
+    this.saveCollaborativeState(sprintId);
   }
 
   reviewsDone(sprint: TeamSprint): boolean {
@@ -489,6 +561,25 @@ export class CollaborativeWorkspace extends WorkspaceBase {
   toggleTeamDelivered(sprintId: string): void {
     this.delivered.update((list) =>
       list.includes(sprintId) ? list.filter((id) => id !== sprintId) : [...list, sprintId],
+    );
+    this.saveCollaborativeState(sprintId);
+  }
+
+  private saveCollaborativeState(sprintId: string): void {
+    const ratings = Object.fromEntries(
+      this.peers.map((peer) => [`${sprintId}:${peer.name}`, this.rating(sprintId, peer.name)]),
+    );
+    const comments = Object.fromEntries(
+      this.peers.map((peer) => [`${sprintId}:${peer.name}`, this.peerComment(sprintId, peer.name)]),
+    );
+    this.saveUnitState(
+      sprintId,
+      {
+        ratings,
+        comments,
+        delivered: this.teamDelivered(sprintId),
+      } satisfies CollaborativeUnitState,
+      this.notes(),
     );
   }
 
@@ -513,11 +604,7 @@ export class CollaborativeWorkspace extends WorkspaceBase {
           `${peer.name} — ${this.rating(sprint.id, peer.name)}/5 : ${this.peerComment(sprint.id, peer.name)}`,
       )
       .join('\n');
-    this.data.saveTrainingNotes(
-      this.request().id,
-      sprint.id,
-      `Contribution : ${this.contribution(sprint.id)}\n\nRevues :\n${reviews}`,
-    );
+    this.saveCollaborativeState(sprint.id);
 
     const evidence: StepEvidence = {
       unitId: sprint.id,

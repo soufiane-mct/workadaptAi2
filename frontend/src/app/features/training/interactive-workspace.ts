@@ -57,6 +57,22 @@ import { WorkspaceBase } from './workspace-base';
             </div>
           </section>
 
+          <section class="ws-panel">
+            <h2>Notes du deck</h2>
+            <p class="ws-panel__sub">
+              Consignez ici ce que vous retenez : elles restent visibles lorsque vous revenez au
+              deck.
+            </p>
+            <textarea
+              class="wa-textarea"
+              rows="3"
+              [value]="notes()"
+              (input)="setNotes($any($event.target).value)"
+              (blur)="saveNotes()"
+              [disabled]="!editable() || isDone(current.id)"
+            ></textarea>
+          </section>
+
           <div class="segmented">
             <button type="button" [class.on]="mode() === 'cards'" (click)="mode.set('cards')">
               Cartes ({{ current.cards.length }})
@@ -373,13 +389,17 @@ export class InteractiveWorkspace extends WorkspaceBase {
     return Math.round((drills.filter((question) => this.isCorrect(question)).length / drills.length) * 100);
   });
 
-  openDeck(unitId: string): void {
-    this.select(unitId);
+  protected override restoreUnitState(_unitId: string): void {
     this.mode.set('cards');
     this.cardIndex.set(0);
     this.flipped.set(false);
     this.pickedMap.set({});
     this.revealed.set({});
+  }
+
+  openDeck(unitId: string): void {
+    this.saveNotes();
+    this.select(unitId);
   }
 
   /**
@@ -458,6 +478,7 @@ export class InteractiveWorkspace extends WorkspaceBase {
       return;
     }
     const drills = deck.drills;
+    this.saveNotes();
     const evidence: StepEvidence = {
       unitId: deckId,
       format: 'INTERACTIVE',
@@ -473,7 +494,7 @@ export class InteractiveWorkspace extends WorkspaceBase {
           .map((index) => question.options[index] ?? '')
           .join(' | ')} — corrigé : ${this.isCorrect(question) ? 'oui' : 'non'}`,
       })),
-      narrative: `Drills vérifiés : ${this.answered()}/${drills.length}. Maîtrise calculée : ${this.mastery()} % (seuil ${deck.masteryThreshold} %). Notions du deck : ${deck.notion}.`,
+      narrative: `Drills vérifiés : ${this.answered()}/${drills.length}. Maîtrise calculée : ${this.mastery()} % (seuil ${deck.masteryThreshold} %). Notions du deck : ${deck.notion}. Notes : ${this.notes().trim() || 'aucune'}.`,
       durationMinutes: this.minutesOn(deckId),
       expectedMinutes: deck.estimatedMinutes,
     };

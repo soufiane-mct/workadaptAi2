@@ -18,7 +18,7 @@ import { DataService } from '../../core/data/data.service';
           <h1>Mes formations</h1>
           <p>
             Chaque parcours est un curriculum complet : plusieurs unités, plusieurs jours,
-            checkpoints formatifs et preuve de fin. Le parcours est généré avant la validation
+            points de contrôle formatifs et preuve de fin. Le parcours est généré avant la validation
             du superviseur, qui voit tout.
           </p>
         </div>
@@ -234,11 +234,11 @@ export class TrainingsPage {
   }
 
   programFor(request: TrainingRequest) {
-    return this.data.programFor(request.id);
+    return this.data.myProgramFor(request.id);
   }
 
   certificateFor(requestId: string) {
-    return this.data.certificateFor(requestId);
+    return this.data.myCertificateFor(requestId);
   }
 
   statusClass(status: string): string {

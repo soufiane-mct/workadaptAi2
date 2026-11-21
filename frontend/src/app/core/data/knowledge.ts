@@ -7,7 +7,7 @@ import { Domain, ExamQuestionType } from '../models';
  * des exemples, des pièges, des exercices et des situations. Les sept
  * builders de formation y puisent chacun ce dont ils ont besoin, avec
  * leur propre composition. Le jour où le backend IA est disponible, ce
- * fichier est remplacé par les réponses du Learning Planner Agent.
+ * fichier est remplacé par les réponses du Agent de conception pédagogique.
  */
 
 export interface KnowledgeConcept {
@@ -116,7 +116,7 @@ const DOCKER: KnowledgePack = {
         'Publier un port avec -p hôte:conteneur',
         'Isolation par réseau dédié',
       ],
-      example: 'Un frontend joint l’API par http://api:8080 sur le réseau interne, sans publier le port de l’API.',
+      example: 'Une interface web joint l’API par http://api:8080 sur le réseau interne, sans publier le port de l’API.',
       pitfall: 'Utiliser localhost dans un conteneur : cela désigne le conteneur lui-même, pas la machine hôte.',
     },
     {

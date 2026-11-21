@@ -47,11 +47,11 @@ export class TrainingWorkspace {
 
   readonly requestId = input.required<string>();
 
-  readonly request = computed(() => this.data.requestById(this.requestId()));
-  readonly program = computed(() => this.data.programFor(this.requestId()));
-  readonly progress = computed(() => this.data.progressFor(this.requestId()));
-  readonly certificate = computed(() => this.data.certificateFor(this.requestId()));
-  readonly evaluation = computed(() => this.data.evaluationFor(this.requestId()));
+  readonly request = computed(() => this.data.myRequestById(this.requestId()));
+  readonly program = computed(() => this.data.myProgramFor(this.requestId()));
+  readonly progress = computed(() => this.data.myProgressFor(this.requestId()));
+  readonly certificate = computed(() => this.data.myCertificateFor(this.requestId()));
+  readonly evaluation = computed(() => this.data.myEvaluationFor(this.requestId()));
   readonly completion = computed(() => this.data.completionState(this.requestId()));
   readonly statusLabels = TRAINING_REQUEST_STATUS_LABELS;
   readonly formatLabels = FORMAT_LABELS;

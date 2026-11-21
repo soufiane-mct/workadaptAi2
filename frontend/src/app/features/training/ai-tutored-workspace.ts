@@ -8,6 +8,14 @@ interface ChatMessage {
   text: string;
 }
 
+interface AiTutorUnitState {
+  messages: ChatMessage[];
+  promptIndex: number;
+  exercise: string;
+  exerciseHints: string[];
+  draft: string;
+}
+
 function normalise(value: string): string {
   return value
     .toLowerCase()
@@ -120,7 +128,7 @@ function normalise(value: string): string {
               rows="3"
               [value]="exercise()"
               [disabled]="!editable() || isDone(current.id)"
-              (input)="exercise.set($any($event.target).value)"
+              (input)="setExercise($any($event.target).value)"
               placeholder="Votre solution, étape par étape."
             ></textarea>
             <div class="ws-actions" style="margin-top: 10px">
@@ -155,7 +163,7 @@ function normalise(value: string): string {
               rows="4"
               [value]="teachBack()"
               [disabled]="!editable() || isDone(current.id)"
-              (input)="teachBack.set($any($event.target).value)"
+              (input)="setNotes($any($event.target).value)"
               placeholder="Expliquez sans jargon inutile, avec un exemple concret."
             ></textarea>
             <div class="keywords">
@@ -431,7 +439,7 @@ export class AiTutoredWorkspace extends WorkspaceBase {
   readonly showLevels = signal(false);
   readonly exercise = signal('');
   readonly exerciseHints = signal<string[]>([]);
-  readonly teachBack = signal('');
+  readonly teachBack = computed(() => this.notes());
 
   readonly coverage = computed(() => {
     const texts = this.messages()
@@ -451,17 +459,48 @@ export class AiTutoredWorkspace extends WorkspaceBase {
   readonly keywordCount = computed(() => this.countKeywords(this.teachBack()));
 
   /**
-   * Le dialogue initial est monté en ngOnInit : la session dépend de
-   * l'entrée `program`, qui n'est disponible qu'à ce moment.
+   * Restaure le dialogue, l'exercice et le teach-back de la session active.
+   * Les anciennes notes (avant le format structuré) restent lisibles.
    */
-  override ngOnInit(): void {
-    super.ngOnInit();
-    this.resetChat();
+  protected override restoreUnitState(unitId: string): void {
+    const current = this.session();
+    const state = this.unitState<AiTutorUnitState>(unitId);
+
+    this.messages.set(state?.messages?.length ? state.messages : this.initialMessages());
+    this.promptIndex.set(state?.promptIndex ?? 0);
+    this.exercise.set(state?.exercise ?? '');
+    this.exerciseHints.set([...(state?.exerciseHints ?? [])]);
+    this.draft.set(state?.draft ?? '');
+    this.showLevels.set(false);
+
+    if (state) {
+      return;
+    }
+
+    const legacy = this.savedNotes(unitId);
+    const marker = '\n\nTeach-back :';
+    const markerIndex = legacy.lastIndexOf(marker);
+    if (markerIndex >= 0) {
+      const dialogue = legacy.slice(0, markerIndex);
+      const teachBack = legacy.slice(markerIndex + marker.length);
+      this.notes.set(teachBack);
+      const restored = dialogue
+        .split('\n')
+        .map((line) => line.match(/^(Tutor|Employé) : (.*)$/))
+        .filter((match): match is RegExpMatchArray => Boolean(match))
+        .map((match) => ({
+          from: match[1] === 'Tutor' ? ('tutor' as const) : ('me' as const),
+          text: match[2],
+        }));
+      if (restored.length > 0) {
+        this.messages.set(restored);
+      }
+    }
   }
 
   openSession(unitId: string): void {
+    this.saveSessionState(this.activeUnit()?.id ?? '');
     this.select(unitId);
-    this.resetChat();
   }
 
   toggleLevels(): void {
@@ -484,6 +523,7 @@ export class AiTutoredWorkspace extends WorkspaceBase {
     const text = this.draft().trim();
     this.messages.update((messages) => [...messages, { from: 'me', text }]);
     this.draft.set('');
+    this.saveSessionState(current.id);
     this.typing.set(true);
     setTimeout(() => {
       this.typing.set(false);
@@ -496,6 +536,7 @@ export class AiTutoredWorkspace extends WorkspaceBase {
         ...messages,
         { from: 'tutor', text: this.reaction(text, prompt) },
       ]);
+      this.saveSessionState(current.id);
     }, 420);
   }
 
@@ -503,7 +544,30 @@ export class AiTutoredWorkspace extends WorkspaceBase {
     const hints = this.session()?.exercise.hints ?? [];
     if (this.exerciseHints().length < hints.length) {
       this.exerciseHints.update((list) => [...list, hints[list.length]]);
+      this.saveSessionState(this.activeUnit()?.id ?? '');
     }
+  }
+
+  setExercise(value: string): void {
+    this.exercise.set(value);
+    this.saveSessionState(this.activeUnit()?.id ?? '');
+  }
+
+  private saveSessionState(unitId: string): void {
+    if (!unitId) {
+      return;
+    }
+    this.saveUnitState(
+      unitId,
+      {
+        messages: [...this.messages()],
+        promptIndex: this.promptIndex(),
+        exercise: this.exercise(),
+        exerciseHints: [...this.exerciseHints()],
+        draft: this.draft(),
+      } satisfies AiTutorUnitState,
+      this.notes(),
+    );
   }
 
   hasKeyword(keyword: string): boolean {
@@ -540,11 +604,7 @@ export class AiTutoredWorkspace extends WorkspaceBase {
     const dialogue = this.messages()
       .map((message) => `${message.from === 'tutor' ? 'Tuteur' : 'Employé'} : ${message.text}`)
       .join('\n');
-    this.data.saveTrainingNotes(
-      this.request().id,
-      session.id,
-      `${dialogue}\n\nTeach-back : ${this.teachBack()}`,
-    );
+    this.saveSessionState(session.id);
 
     const evidence: StepEvidence = {
       unitId: session.id,
@@ -590,15 +650,9 @@ export class AiTutoredWorkspace extends WorkspaceBase {
     this.completeValidated(session.id, session.estimatedMinutes, verification);
   }
 
-  private resetChat(): void {
+  private initialMessages(): ChatMessage[] {
     const current = this.session();
-    this.messages.set(current ? [{ from: 'tutor', text: current.opening }] : []);
-    this.promptIndex.set(0);
-    this.draft.set('');
-    this.exercise.set('');
-    this.exerciseHints.set([]);
-    this.teachBack.set('');
-    this.showLevels.set(false);
+    return current ? [{ from: 'tutor', text: current.opening }] : [];
   }
 
   private reaction(answer: string, prompt: string): string {

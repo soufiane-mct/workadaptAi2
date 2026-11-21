@@ -250,6 +250,29 @@ describe('EvaluationService — scoring', () => {
     expect(report!.decision).toBe('ECHOUE');
   });
 
+  it('suit le critère éliminatoire déclaré, quelle que soit sa position', () => {
+    const requestId = completedTraining();
+    evaluation.open(requestId, 'TECHNICAL_CHALLENGE');
+    evaluation.start(requestId);
+    const document = evaluation.forRequest(requestId)!.document as TechnicalChallengeDocument;
+
+    // Le document déclare explicitement le second critère comme bloquant.
+    // Un correcteur qui présumerait « le premier » passerait à côté de cette
+    // règle métier.
+    document.tasks[0].blockingCriteria = [1];
+    const blockingLabel = document.tasks[0].successCriteria[1];
+    const answers: EvaluationAnswers = {};
+    for (const task of document.tasks) {
+      answers[task.id] = task.successCriteria.map((_, index) => index);
+    }
+    answers[document.tasks[0].id] = [0];
+
+    const report = evaluation.submit(requestId, answers);
+
+    expect(report!.decision).toBe('ECHOUE');
+    expect(report!.blocking?.some((reason) => reason.includes(blockingLabel))).toBe(true);
+  });
+
   it('récompense une épreuve technique entièrement vérifiée', () => {
     const requestId = completedTraining();
     evaluation.open(requestId, 'TECHNICAL_CHALLENGE');
@@ -334,6 +357,31 @@ describe('EvaluationService — scoring', () => {
 
     expect(report!.score).toBe(0);
     expect(report!.decision).toBe('ECHOUE');
+  });
+
+  it('refuse une réponse de soutenance longue mais hors sujet', () => {
+    const requestId = completedTraining();
+    evaluation.open(requestId, 'DEFENSE_INTERVIEW');
+    evaluation.start(requestId);
+    const document = evaluation.forRequest(requestId)!.document as DefenseInterviewDocument;
+    const blockingQuestion = document.questions.find((question) => question.blocking) ?? document.questions[0];
+
+    // On rend le cas déterministe : la question de fond attend un thème
+    // précis, et la réponse est suffisamment longue pour passer le contrôle
+    // de longueur sans démontrer le thème attendu.
+    blockingQuestion.expectedThemes = ['cartographie astronomique', 'observation des constellations'];
+    const answers: EvaluationAnswers = {};
+    for (const question of document.questions) {
+      answers[question.id] = `${question.expectedThemes.join(', ')} : position, justification, limite reconnue et exemple concret tiré de ma pratique, avec les conditions de réversibilité.`;
+    }
+    answers[blockingQuestion.id] =
+      'J’ai indiqué à la famille que le train arriverait demain, puis j’ai préparé un pique-nique au bord du lac avant de ranger les assiettes.';
+
+    const report = evaluation.submit(requestId, answers);
+
+    expect(report!.decision).toBe('ECHOUE');
+    expect(report!.score).toBeLessThan(100);
+    expect(report!.blocking?.some((reason) => reason.includes(blockingQuestion.prompt))).toBe(true);
   });
 
   /* ---------------------------------------------------------------- *

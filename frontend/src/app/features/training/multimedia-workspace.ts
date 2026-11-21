@@ -3,6 +3,11 @@ import { MultimediaProgram, StepEvidence } from '../../core/models';
 import { StepVerdict } from './step-verdict';
 import { WorkspaceBase } from './workspace-base';
 
+interface MultimediaUnitState {
+  restitutions: Record<string, boolean>;
+  visited: Record<string, boolean>;
+}
+
 @Component({
   selector: 'wa-multimedia-workspace',
   imports: [StepVerdict],
@@ -120,7 +125,7 @@ import { WorkspaceBase } from './workspace-base';
               class="wa-textarea"
               rows="4"
               [value]="notes()"
-              (input)="notes.set($any($event.target).value)"
+              (input)="setNotes($any($event.target).value)"
               (blur)="saveNotes()"
               [disabled]="!editable()"
             ></textarea>
@@ -131,7 +136,7 @@ import { WorkspaceBase } from './workspace-base';
               <input
                 type="checkbox"
                 [checked]="restitutionDone()"
-                (change)="restitutionDone.set($any($event.target).checked)"
+                (change)="setRestitutionDone($any($event.target).checked)"
                 [disabled]="!editable()"
               />
               <span>J’ai restitué cet épisode à voix haute sans support.</span>
@@ -300,7 +305,6 @@ export class MultimediaWorkspace extends WorkspaceBase {
   readonly bars = [40, 65, 30, 80, 55, 90, 45, 70, 35, 85, 50, 75, 60, 95, 42, 68];
 
   readonly mode = signal<'video' | 'article' | 'podcast'>('video');
-  readonly notes = signal('');
   readonly restitutionDone = signal(false);
   readonly visited = signal<Record<string, boolean>>({});
 
@@ -326,19 +330,21 @@ export class MultimediaWorkspace extends WorkspaceBase {
     return map[videoKey] ? map : { ...map, [videoKey]: true };
   });
 
-  selectUnit(unitId: string): void {
-    this.select(unitId);
-    this.restitutionDone.set(false);
-    // Les notes déjà écrites restent visibles (relecture d'un parcours fait).
-    this.notes.set(this.savedNotes(unitId));
+  protected override restoreUnitState(unitId: string): void {
+    const state = this.unitState<MultimediaUnitState>(unitId);
+    this.visited.update((map) => ({ ...map, ...(state?.visited ?? {}) }));
+    this.restitutionDone.set(state?.restitutions[unitId] ?? this.isDone(unitId));
     this.mode.set('video');
   }
 
-  saveNotes(): void {
-    const episode = this.episode();
-    if (episode && this.notes().trim()) {
-      this.data.saveTrainingNotes(this.request().id, episode.id, this.notes());
-    }
+  selectUnit(unitId: string): void {
+    this.saveNotes();
+    this.select(unitId);
+  }
+
+  setRestitutionDone(value: boolean): void {
+    this.restitutionDone.set(value);
+    this.saveMultimediaState(this.activeUnit()?.id ?? '');
   }
 
   /** La consultation de chaque support est tracée : c'est une donnée vérifiable. */
@@ -347,7 +353,21 @@ export class MultimediaWorkspace extends WorkspaceBase {
     const episode = this.episode();
     if (episode) {
       this.visited.update((map) => ({ ...map, [`${episode.id}-${tab}`]: true }));
+      this.saveMultimediaState(episode.id);
     }
+  }
+
+  private saveMultimediaState(unitId: string): void {
+    if (!unitId) {
+      return;
+    }
+    const visited = Object.fromEntries(
+      Object.entries(this.visited()).filter(([key]) => key.startsWith(`${unitId}-`)),
+    );
+    this.saveUnitState(unitId, {
+      restitutions: { [unitId]: this.restitutionDone() },
+      visited,
+    } satisfies MultimediaUnitState);
   }
 
   /**
@@ -360,6 +380,7 @@ export class MultimediaWorkspace extends WorkspaceBase {
       return;
     }
     this.saveNotes();
+    this.saveMultimediaState(unitId);
     const evidence: StepEvidence = {
       unitId,
       format: 'MULTIMEDIA',
@@ -392,10 +413,6 @@ export class MultimediaWorkspace extends WorkspaceBase {
       evidence,
     });
 
-    if (this.completeValidated(unitId, episode.estimatedMinutes, verification)) {
-      // Les notes ne sont pas effacées : elles restent visibles pour la
-      // relecture du parcours et sont déjà persistées par saveNotes().
-      this.restitutionDone.set(false);
-    }
+    this.completeValidated(unitId, episode.estimatedMinutes, verification);
   }
 }

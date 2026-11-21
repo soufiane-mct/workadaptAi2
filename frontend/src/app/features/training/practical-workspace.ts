@@ -3,6 +3,10 @@ import { Lab, PracticalProgram, StepEvidence } from '../../core/models';
 import { StepVerdict } from './step-verdict';
 import { WorkspaceBase } from './workspace-base';
 
+interface PracticalUnitState {
+  observations: Record<string, string>;
+}
+
 @Component({
   selector: 'wa-practical-workspace',
   imports: [StepVerdict],
@@ -10,7 +14,7 @@ import { WorkspaceBase } from './workspace-base';
     <div class="ws-body">
       <aside class="ws-panel">
         <h2>Laboratoires</h2>
-        <p class="ws-panel__sub">{{ units().length }} labs · environnement isolé</p>
+        <p class="ws-panel__sub">{{ units().length }} ateliers · environnement isolé</p>
         <div class="ws-list">
           @for (unit of units(); track unit.id; let index = $index) {
             <button
@@ -41,7 +45,7 @@ import { WorkspaceBase } from './workspace-base';
         <main class="ws-main">
           <section class="ws-panel lab-head">
             <div>
-              <span class="ws-tag">Lab {{ current.order }}</span>
+              <span class="ws-tag">Atelier {{ current.order }}</span>
               <h2 style="margin-top: 8px">{{ current.title }}</h2>
               <p class="ws-panel__sub" style="margin-bottom: 0">{{ current.brief }}</p>
             </div>
@@ -55,7 +59,7 @@ import { WorkspaceBase } from './workspace-base';
           </section>
 
           <section class="ws-panel">
-            <h2>Console du lab</h2>
+            <h2>Console de l’atelier</h2>
             <p class="ws-panel__sub">Commandes guidées — exécution simulée, sortie réelle du scénario.</p>
             <div class="console">
               @for (line of consoleLines(); track $index) {
@@ -84,7 +88,7 @@ import { WorkspaceBase } from './workspace-base';
           </section>
 
           <section class="ws-panel">
-            <h2>Étapes du lab</h2>
+            <h2>Étapes de l’atelier</h2>
             <div class="steps">
               @for (step of current.steps; track step; let index = $index) {
                 <label class="ws-check">
@@ -123,11 +127,11 @@ import { WorkspaceBase } from './workspace-base';
             <h2>Critères de réussite</h2>
             <p class="ws-panel__sub">
               @if (current.validationMode === 'AUTO') {
-                Validation automatique : les critères se cochent dès que toutes les commandes du
-                lab ont été exécutées.
+                Validation automatique : les critères se cochent dès que toutes les commandes
+                de l’atelier ont été exécutées.
               } @else {
                 Validation {{ modeLabel(current.validationMode) }}. Tous les critères doivent être
-                cochés avant de terminer le lab.
+                cochés avant de terminer l’atelier.
               }
             </p>
             <div class="criteria">
@@ -171,6 +175,7 @@ import { WorkspaceBase } from './workspace-base';
                 [disabled]="!editable() || isDone(current.id)"
                 [value]="restitution(current.id)"
                 (input)="setRestitution(current.id, $any($event.target).value)"
+                (blur)="saveNotes()"
                 placeholder="Décrivez ce que vous avez réellement fait : commandes exécutées, résultat obtenu, ce qui a changé, ce qui reste à faire."
               ></textarea>
             </label>
@@ -185,7 +190,7 @@ import { WorkspaceBase } from './workspace-base';
                 <span class="material-symbols-outlined">
                   {{ current.validationMode === 'HUMAN' ? 'send' : 'fact_check' }}
                 </span>
-                {{ isDone(current.id) ? 'Lab validé' : current.validationMode === 'HUMAN' ? 'Soumettre au superviseur' : 'Faire vérifier par l’agent' }}
+                {{ isDone(current.id) ? 'Atelier validé' : current.validationMode === 'HUMAN' ? 'Soumettre au superviseur' : 'Faire vérifier par l’agent' }}
               </button>
               <span class="wa-small wa-muted">
                 {{ isDone(current.id) ? 'Travail vérifié et enregistré' : progressLabel(current) }}
@@ -387,7 +392,6 @@ export class PracticalWorkspace extends WorkspaceBase {
   readonly checked = signal<number[]>([]);
   readonly criteriaChecked = signal<number[]>([]);
   readonly observations = signal<Record<string, string>>({});
-  readonly restitutions = signal<Record<string, string>>({});
   readonly hintIndex = signal(-1);
   readonly consoleLines = signal<{ kind: 'in' | 'ok' | 'err'; text: string }[]>([]);
 
@@ -395,14 +399,20 @@ export class PracticalWorkspace extends WorkspaceBase {
     return this.pp().labs.find((item) => item.id === unitId);
   }
 
-  openLab(unitId: string): void {
-    this.select(unitId);
+  protected override restoreUnitState(unitId: string): void {
     this.executed.set([]);
     this.attempts.set({});
     this.checked.set([]);
     this.criteriaChecked.set([]);
     this.hintIndex.set(-1);
     this.consoleLines.set([]);
+    const state = this.unitState<PracticalUnitState>(unitId);
+    this.observations.set({ ...(state?.observations ?? {}) });
+  }
+
+  openLab(unitId: string): void {
+    this.saveNotes();
+    this.select(unitId);
   }
 
   runCommand(index: number, command: string): void {
@@ -450,14 +460,24 @@ export class PracticalWorkspace extends WorkspaceBase {
 
   setObservation(labId: string, index: number, value: string): void {
     this.observations.update((map) => ({ ...map, [`${labId}:${index}`]: value }));
+    this.savePracticalState(labId);
   }
 
   restitution(labId: string): string {
-    return this.restitutions()[labId] ?? '';
+    return labId === this.activeUnit()?.id ? this.notes() : this.savedNotes(labId);
   }
 
   setRestitution(labId: string, value: string): void {
-    this.restitutions.update((map) => ({ ...map, [labId]: value }));
+    if (labId === this.activeUnit()?.id) {
+      this.setNotes(value);
+    }
+  }
+
+  private savePracticalState(labId: string): void {
+    const observations = Object.fromEntries(
+      Object.entries(this.observations()).filter(([key]) => key.startsWith(`${labId}:`)),
+    );
+    this.saveUnitState(labId, { observations } satisfies PracticalUnitState);
   }
 
   revealHint(): void {
@@ -512,6 +532,7 @@ export class PracticalWorkspace extends WorkspaceBase {
       .map(([, value]) => value)
       .filter((value) => value.trim().length > 0);
     const restitution = this.restitution(lab.id).trim();
+    this.savePracticalState(lab.id);
 
     const evidence: StepEvidence = {
       unitId: lab.id,
@@ -571,7 +592,7 @@ export class PracticalWorkspace extends WorkspaceBase {
     const outputs = [
       'Étape exécutée avec succès. Artefact produit et vérifié.',
       'Succès : la configuration est appliquée et reproductible.',
-      'Terminé. Le résultat correspond à la sortie attendue du lab.',
+      'Terminé. Le résultat correspond à la sortie attendue de l’atelier.',
       'Succès : l’état du système est conforme.',
     ];
     return outputs[index % outputs.length];

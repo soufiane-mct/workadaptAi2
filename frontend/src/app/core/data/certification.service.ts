@@ -1,4 +1,4 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import {
   Certificate,
   EVALUATION_METHOD_LABELS,
@@ -12,6 +12,7 @@ import { INITIAL_CERTIFICATES } from './mock-data';
 import { NotificationService } from './notification.service';
 import { ProfileService } from './profile.service';
 import { TrainingService } from './training.service';
+import { DemoStateStore } from './demo-state.store';
 
 /**
  * Domaine Certification — étanche.
@@ -29,8 +30,11 @@ export class CertificationService {
   private readonly profileService = inject(ProfileService);
   private readonly notifications = inject(NotificationService);
   private readonly audit = inject(AuditService);
+  private readonly store = inject(DemoStateStore);
 
-  private readonly _certificates = signal<Certificate[]>([...INITIAL_CERTIFICATES]);
+  private readonly _certificates = signal<Certificate[]>(
+    this.store.read<Certificate[]>('certification.certificates', INITIAL_CERTIFICATES),
+  );
   readonly certificates = this._certificates.asReadonly();
 
   readonly issued = computed(() =>
@@ -39,12 +43,30 @@ export class CertificationService {
 
   readonly total = computed(() => this._certificates().length);
 
+  constructor() {
+    effect(() => {
+      this.store.write('certification.certificates', this._certificates());
+    });
+  }
+
   forRequest(requestId: string): Certificate | undefined {
     return this._certificates().find((certificate) => certificate.requestId === requestId);
   }
 
+  forRequestFor(requestId: string, employeeId: string): Certificate | undefined {
+    return this._certificates().find(
+      (certificate) => certificate.requestId === requestId && certificate.employeeId === employeeId,
+    );
+  }
+
   byId(id: string): Certificate | undefined {
     return this._certificates().find((certificate) => certificate.id === id);
+  }
+
+  byIdFor(id: string, employeeId: string): Certificate | undefined {
+    return this._certificates().find(
+      (certificate) => certificate.id === id && certificate.employeeId === employeeId,
+    );
   }
 
   forEmployee(employeeId: string): Certificate[] {
@@ -81,6 +103,7 @@ export class CertificationService {
     if (report.decision === 'REUSSI') {
       const certificate = this.issue(record.requestId, record.id, report, program.format);
       this.collection.recordEvaluationResult({
+        employeeId: record.employeeId,
         requestId: record.requestId,
         evaluationId: record.id,
         methodLabel: EVALUATION_METHOD_LABELS[record.method],
@@ -119,7 +142,7 @@ export class CertificationService {
         employeeId: request.employeeId,
       });
       this.audit.log({
-        actor: 'Assessment & Certification Agent',
+        actor: 'Agent d’évaluation et de certification',
         action: 'Délivrance de certificat',
         target: certificate.id,
         detail: `${certificate.formationTitle} — ${report.score}/100, niveau ${report.levelBefore} → ${report.levelAfter}.`,
@@ -128,7 +151,13 @@ export class CertificationService {
     }
 
     // Échec : pas de certificat. La remédiation repart dans Formation.
+    const blocking = report.blocking ?? [];
+    const failureReason =
+      blocking.length > 0
+        ? `Une exigence bloquante n’est pas satisfaite : ${blocking[0]}`
+        : `Score ${report.score}/100, inférieur au seuil de ${report.passScore}.`;
     this.collection.recordEvaluationResult({
+      employeeId: record.employeeId,
       requestId: record.requestId,
       evaluationId: record.id,
       methodLabel: EVALUATION_METHOD_LABELS[record.method],
@@ -137,7 +166,7 @@ export class CertificationService {
       levelAfter: report.levelAfter,
       passed: false,
       score: report.score,
-      note: `Seuil ${report.passScore} non atteint.`,
+      note: failureReason,
     });
 
     const remediation = this.training.createRemediation({
@@ -149,23 +178,23 @@ export class CertificationService {
       levelFrom: report.levelAfter,
       levelTo: request.levelTo,
       format: program.format,
-      reason: `Score ${report.score}/100, inférieur au seuil de ${report.passScore}.`,
+      reason: failureReason,
     });
 
     this.notifications.notify({
       type: 'EVALUATION_FAILED',
       title: `Évaluation non réussie : ${record.employeeName}`,
-      message: `${EVALUATION_METHOD_LABELS[record.method]} — ${report.score}/100 (seuil ${report.passScore}). Aucun certificat émis. Une remédiation ${remediation ? remediation.id : ''} a été créée.`,
+      message: `${EVALUATION_METHOD_LABELS[record.method]} — ${failureReason} Aucun certificat émis. Une remédiation ${remediation ? remediation.id : ''} a été créée.`,
       audience: ['EMPLOYEE', 'MANAGER'],
       link: remediation ? `/app/validations/${remediation.id}` : `/app/evaluations/${record.requestId}`,
       employeeId: record.employeeId,
     });
 
     this.audit.log({
-      actor: 'Assessment & Certification Agent',
+      actor: 'Agent d’évaluation et de certification',
       action: 'Échec d’évaluation',
       target: record.id,
-      detail: `Score ${report.score}/100 < ${report.passScore}. Aucun certificat. Remédiation créée.`,
+      detail: `${failureReason} Aucun certificat. Remédiation créée.`,
     });
 
     return { outcome: 'REMEDIATION', report };
@@ -214,5 +243,15 @@ export class CertificationService {
     });
 
     return certificate;
+  }
+
+  clearEmployee(employeeId: string): void {
+    this._certificates.update((certificates) =>
+      certificates.filter((certificate) => certificate.employeeId !== employeeId),
+    );
+  }
+
+  reset(): void {
+    this._certificates.set(INITIAL_CERTIFICATES.map((certificate) => ({ ...certificate })));
   }
 }

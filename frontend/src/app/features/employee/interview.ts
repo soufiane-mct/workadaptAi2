@@ -656,7 +656,7 @@ export class InterviewPage {
         {
           title: 'Compléter la collecte technique',
           description:
-            'Les événements du Desktop Collector et des applications connectées restent la source la plus fiable.',
+            'Les événements du Collecteur local et des applications connectées restent la source la plus fiable.',
           link: '/app/collecte',
           action: 'Voir la collecte',
           tone: 'success',

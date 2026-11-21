@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { effect, Injectable, inject, signal } from '@angular/core';
 import {
   StepEvidence,
   StepEvidenceItem,
@@ -10,6 +10,8 @@ import { AuditService } from './audit.service';
 import { CollectionService } from './collection.service';
 import { NotificationService } from './notification.service';
 import { WorkflowStateService } from './workflow-state.service';
+import { DemoStateStore } from './demo-state.store';
+import { ProfileService } from './profile.service';
 
 const AGENT = 'Learning Evidence Agent';
 
@@ -52,13 +54,29 @@ export class StepVerificationService {
   private readonly notifications = inject(NotificationService);
   private readonly collection = inject(CollectionService);
   private readonly workflow = inject(WorkflowStateService);
+  private readonly profileService = inject(ProfileService);
+  private readonly store = inject(DemoStateStore);
 
-  private readonly _verifications = signal<StepVerification[]>([]);
+  private readonly _verifications = signal<StepVerification[]>(
+    this.store.read<StepVerification[]>('step-verification.items', []),
+  );
   readonly verifications = this._verifications.asReadonly();
+
+  constructor() {
+    effect(() => {
+      this.store.write('step-verification.items', this._verifications());
+    });
+  }
 
   forRequest(requestId: string): StepVerification[] {
     return this._verifications()
       .filter((item) => item.requestId === requestId)
+      .sort((a, b) => b.at.localeCompare(a.at));
+  }
+
+  forRequestFor(requestId: string, employeeId: string): StepVerification[] {
+    return this._verifications()
+      .filter((item) => item.requestId === requestId && item.employeeId === employeeId)
       .sort((a, b) => b.at.localeCompare(a.at));
   }
 
@@ -90,6 +108,7 @@ export class StepVerificationService {
     employeeId?: string;
   }): StepVerification {
     const evidence = input.evidence;
+    const employeeId = input.employeeId ?? this.profileService.employeeId();
     const checked: string[] = [];
     const gaps: string[] = [];
     const reviewed: string[] = [];
@@ -303,6 +322,7 @@ export class StepVerificationService {
 
     const verification: StepVerification = {
       id: `ver-${input.requestId}-${Date.now()}`,
+      employeeId,
       requestId: input.requestId,
       unitId: input.unitId,
       unitTitle: input.unitTitle,
@@ -330,6 +350,7 @@ export class StepVerificationService {
     });
 
     this.collection.recordStepVerification({
+      employeeId,
       requestId: input.requestId,
       unitId: input.unitId,
       unitTitle: input.unitTitle,
@@ -352,11 +373,19 @@ export class StepVerificationService {
         message: `${AGENT} — ${gaps[0] ?? 'La preuve envoyée est insuffisante.'}`,
         audience: rejections >= 2 ? ['EMPLOYEE', 'MANAGER'] : ['EMPLOYEE'],
         link: `/app/formations/${input.requestId}`,
-        employeeId: input.employeeId ?? 'emp-0001',
+        employeeId,
       });
     }
 
     return verification;
+  }
+
+  clearEmployee(employeeId: string): void {
+    this._verifications.update((items) => items.filter((item) => item.employeeId !== employeeId));
+  }
+
+  reset(): void {
+    this._verifications.set([]);
   }
 
   /** Un critère est couvert s’il est réalisé, ou si une observation le prouve. */

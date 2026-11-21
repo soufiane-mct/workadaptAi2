@@ -1,88 +1,151 @@
-import { computed, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
 import { EvidenceRef, GapLifecycle, SkillEstimate, SkillGap } from '../models';
 import { INITIAL_GAPS } from './mock-data';
 import { formatsForSkill } from './recommendations';
+import { ProfileService } from './profile.service';
+import { DemoStateStore } from './demo-state.store';
 
 /**
  * Écarts de compétence et leur cycle de vie.
  *
  * Un écart détecté pendant une formation active est mis EN_ATTENTE : il est
  * notifié, mais ne bloque pas le cycle en cours. Le superviseur peut le
- * prioriser, ce qui est alors tracé dans l’audit.
+ * prioriser, ce qui est alors tracé dans l'audit. Toutes les lectures et
+ * mutations sont filtrées par l'employé propriétaire.
  */
 @Injectable({ providedIn: 'root' })
 export class GapService {
-  private readonly _gaps = signal<SkillGap[]>(INITIAL_GAPS);
-  readonly gaps = this._gaps.asReadonly();
+  private readonly profileService = inject(ProfileService);
+  private readonly store = inject(DemoStateStore);
+
+  private readonly _gaps = signal<SkillGap[]>(
+    this.store.read<SkillGap[]>('gaps.items', INITIAL_GAPS),
+  );
+
+  readonly allGaps = this._gaps.asReadonly();
+  readonly gaps = computed(() =>
+    this._gaps().filter((gap) => gap.employeeId === this.profileService.employeeId()),
+  );
 
   readonly actionable = computed(() =>
-    this._gaps()
+    this.gaps()
       .filter((gap) => ['NOUVEAU', 'RECONNU', 'TOUJOURS_OUVERT'].includes(gap.status))
       .sort((a, b) => b.gap - a.gap),
   );
 
-  readonly queued = computed(() => this._gaps().filter((gap) => gap.status === 'EN_ATTENTE'));
+  readonly queued = computed(() => this.gaps().filter((gap) => gap.status === 'EN_ATTENTE'));
 
-  readonly inTraining = computed(() => this._gaps().filter((gap) => gap.status === 'EN_FORMATION'));
-
-  readonly resolved = computed(() => this._gaps().filter((gap) => gap.status === 'RESOLU'));
-
-  readonly newCount = computed(
-    () => this._gaps().filter((gap) => gap.status === 'NOUVEAU').length,
+  readonly inTraining = computed(() =>
+    this.gaps().filter((gap) => gap.status === 'EN_FORMATION'),
   );
 
-  byId(id: string): SkillGap | undefined {
-    return this._gaps().find((gap) => gap.id === id);
+  readonly resolved = computed(() => this.gaps().filter((gap) => gap.status === 'RESOLU'));
+
+  readonly newCount = computed(
+    () => this.gaps().filter((gap) => gap.status === 'NOUVEAU').length,
+  );
+
+  constructor() {
+    const safe = this._gaps().filter((gap) => !!gap.employeeId);
+    if (safe.length !== this._gaps().length) {
+      this._gaps.set(safe);
+      this.persist();
+    }
   }
 
-  bySkill(code: string): SkillGap | undefined {
-    return this._gaps().find((gap) => gap.skillCode === code);
+  byId(id: string, employeeId = this.profileService.employeeId()): SkillGap | undefined {
+    if (!employeeId) {
+      return undefined;
+    }
+    return this._gaps().find((gap) => gap.id === id && gap.employeeId === employeeId);
   }
 
-  acknowledge(id: string): void {
-    this.patch(id, { status: 'RECONNU' });
+  bySkill(code: string, employeeId = this.profileService.employeeId()): SkillGap | undefined {
+    if (!employeeId) {
+      return undefined;
+    }
+    return this._gaps().find((gap) => gap.skillCode === code && gap.employeeId === employeeId);
   }
 
-  queue(id: string, note: string): void {
-    this.patch(id, { status: 'EN_ATTENTE', queueNote: note });
+  acknowledge(id: string, employeeId = this.profileService.employeeId()): void {
+    this.patch(id, { status: 'RECONNU' }, employeeId);
   }
 
-  markInTraining(id: string, requestId: string): void {
-    this.patch(id, { status: 'EN_FORMATION', requestId });
+  queue(id: string, note: string, employeeId = this.profileService.employeeId()): void {
+    this.patch(id, { status: 'EN_ATTENTE', queueNote: note }, employeeId);
   }
 
-  markResolved(id: string, finalLevel: number): void {
-    this.patch(id, {
-      status: 'RESOLU',
-      currentLevel: finalLevel,
-      gap: Math.max(0, this.byId(id)?.targetLevel ?? 0) - finalLevel,
-      resolvedAt: new Date().toISOString(),
-    });
+  markInTraining(
+    id: string,
+    requestId: string,
+    employeeId = this.profileService.employeeId(),
+  ): void {
+    this.patch(id, { status: 'EN_FORMATION', requestId }, employeeId);
   }
 
-  markPartial(id: string, finalLevel: number): void {
-    this.patch(id, {
-      status: 'PARTIELLEMENT_RESOLU',
-      currentLevel: finalLevel,
-      gap: Math.max(0, (this.byId(id)?.targetLevel ?? 0) - finalLevel),
-    });
+  markResolved(
+    id: string,
+    finalLevel: number,
+    employeeId = this.profileService.employeeId(),
+  ): void {
+    const gap = this.byId(id, employeeId);
+    this.patch(
+      id,
+      {
+        status: 'RESOLU',
+        currentLevel: finalLevel,
+        gap: Math.max(0, gap?.targetLevel ?? 0) - finalLevel,
+        resolvedAt: new Date().toISOString(),
+      },
+      employeeId,
+    );
   }
 
-  markStillOpen(id: string, finalLevel: number, note: string): void {
-    this.patch(id, {
-      status: 'TOUJOURS_OUVERT',
-      currentLevel: finalLevel,
-      gap: Math.max(0, (this.byId(id)?.targetLevel ?? 0) - finalLevel),
-      queueNote: note,
-    });
+  markPartial(
+    id: string,
+    finalLevel: number,
+    employeeId = this.profileService.employeeId(),
+  ): void {
+    const gap = this.byId(id, employeeId);
+    this.patch(
+      id,
+      {
+        status: 'PARTIELLEMENT_RESOLU',
+        currentLevel: finalLevel,
+        gap: Math.max(0, (gap?.targetLevel ?? 0) - finalLevel),
+      },
+      employeeId,
+    );
   }
 
-  reopen(id: string): void {
-    const gap = this.byId(id);
-    if (!gap) {
+  markStillOpen(
+    id: string,
+    finalLevel: number,
+    note: string,
+    employeeId = this.profileService.employeeId(),
+  ): void {
+    const gap = this.byId(id, employeeId);
+    this.patch(
+      id,
+      {
+        status: 'TOUJOURS_OUVERT',
+        currentLevel: finalLevel,
+        gap: Math.max(0, (gap?.targetLevel ?? 0) - finalLevel),
+        queueNote: note,
+      },
+      employeeId,
+    );
+  }
+
+  reopen(id: string, employeeId = this.profileService.employeeId()): void {
+    if (!this.byId(id, employeeId)) {
       return;
     }
-    this.patch(id, { status: 'NOUVEAU', resolvedAt: undefined, detectedAt: new Date().toISOString() });
+    this.patch(
+      id,
+      { status: 'NOUVEAU', resolvedAt: undefined, detectedAt: new Date().toISOString() },
+      employeeId,
+    );
   }
 
   /** Recalcule les écarts à partir des compétences estimées. */
@@ -90,11 +153,11 @@ export class GapService {
     const created: SkillGap[] = [];
     for (const skill of skills) {
       const gapSize = skill.target - skill.level;
-      const existing = this.bySkill(skill.code);
+      const existing = this.bySkill(skill.code, skill.employeeId);
 
       if (gapSize <= 0) {
         if (existing && existing.status !== 'RESOLU') {
-          this.markResolved(existing.id, skill.level);
+          this.markResolved(existing.id, skill.level, skill.employeeId);
         }
         continue;
       }
@@ -103,7 +166,7 @@ export class GapService {
         const shouldReopen = existing.status === 'RESOLU';
         this._gaps.update((gaps) =>
           gaps.map((gap) =>
-            gap.id === existing.id
+            gap.id === existing.id && gap.employeeId === skill.employeeId
               ? {
                   ...gap,
                   currentLevel: skill.level,
@@ -119,11 +182,13 @@ export class GapService {
               : gap,
           ),
         );
+        this.persist();
         continue;
       }
 
       const gap: SkillGap = {
-        id: `gap-${skill.code}`,
+        employeeId: skill.employeeId,
+        id: `gap-${skill.employeeId}-${skill.code}`,
         skillCode: skill.code,
         skillLabel: skill.label,
         currentLevel: skill.level,
@@ -144,11 +209,15 @@ export class GapService {
       this._gaps.update((gaps) => [gap, ...gaps]);
       created.push(gap);
     }
+    if (created.length > 0) {
+      this.persist();
+    }
     return created;
   }
 
   /** Crée un écart proposé par la veille technologique. */
   createFromSignal(input: {
+    employeeId: string;
     skillCode: string;
     skillLabel: string;
     currentLevel: number;
@@ -157,13 +226,14 @@ export class GapService {
     inference: string;
     evidence: EvidenceRef;
   }): SkillGap {
-    const existing = this.bySkill(input.skillCode);
+    const existing = this.bySkill(input.skillCode, input.employeeId);
     if (existing) {
       return existing;
     }
     const gapSize = Math.max(1, input.targetLevel - input.currentLevel);
     const gap: SkillGap = {
-      id: `gap-${input.skillCode}`,
+      employeeId: input.employeeId,
+      id: `gap-${input.employeeId}-${input.skillCode}`,
       skillCode: input.skillCode,
       skillLabel: input.skillLabel,
       currentLevel: input.currentLevel,
@@ -179,6 +249,7 @@ export class GapService {
       detectedAt: new Date().toISOString(),
     };
     this._gaps.update((gaps) => [gap, ...gaps]);
+    this.persist();
     return gap;
   }
 
@@ -195,7 +266,30 @@ export class GapService {
     return labels[status];
   }
 
-  private patch(id: string, patch: Partial<SkillGap>): void {
-    this._gaps.update((gaps) => gaps.map((gap) => (gap.id === id ? { ...gap, ...patch } : gap)));
+  /** Efface les données d'un collaborateur sans toucher aux autres espaces. */
+  clearEmployee(employeeId: string): void {
+    this._gaps.update((gaps) => gaps.filter((gap) => gap.employeeId !== employeeId));
+    this.persist();
+  }
+
+  reset(): void {
+    this._gaps.set(INITIAL_GAPS.map((gap) => ({ ...gap })));
+    this.persist();
+  }
+
+  private patch(id: string, patch: Partial<SkillGap>, employeeId: string): void {
+    if (!employeeId) {
+      return;
+    }
+    this._gaps.update((gaps) =>
+      gaps.map((gap) =>
+        gap.id === id && gap.employeeId === employeeId ? { ...gap, ...patch } : gap,
+      ),
+    );
+    this.persist();
+  }
+
+  private persist(): void {
+    this.store.write('gaps.items', this._gaps());
   }
 }

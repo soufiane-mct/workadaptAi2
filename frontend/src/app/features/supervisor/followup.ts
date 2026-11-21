@@ -89,7 +89,6 @@ const STATUS_LABELS: Record<TrainingFollowUpStatus, string> = {
                 <tr>
                   <td>
                     <strong>{{ row.employee }}</strong>
-                    <div class="wa-small wa-muted">{{ row.employeeId }}</div>
                   </td>
                   <td>{{ row.formationTitle }}</td>
                   <td><span class="wa-chip wa-chip--neutral">{{ formatLabels[row.format] }}</span></td>
@@ -126,7 +125,7 @@ const STATUS_LABELS: Record<TrainingFollowUpStatus, string> = {
 
       <section class="panel">
         <h2>Lecture des chiffres</h2>
-        <div class="split--even" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+        <div class="split--even">
           <div>
             <h3 class="sub">Ce qui compte</h3>
             <ul class="bullets">

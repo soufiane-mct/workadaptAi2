@@ -298,7 +298,7 @@ import { SkillBar } from '../../shared/ui/skill-bar';
 export class TeamPage {
   private readonly data = inject(DataService);
 
-  readonly members = computed(() => this.data.team);
+  readonly members = computed(() => this.data.supervisorTeam());
   readonly methodLabels = EVALUATION_METHOD_LABELS;
   readonly sourceLabels = SKILL_SOURCE_LABELS;
 

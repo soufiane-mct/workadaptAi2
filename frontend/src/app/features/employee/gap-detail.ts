@@ -189,8 +189,9 @@ import { DataService } from '../../core/data/data.service';
             <section class="panel">
               <h2>Règle de la boucle</h2>
               <p class="panel__sub" style="margin-bottom: 0">
-                Formation terminée → TRAINING_COMPLETION réinjecté → écart partiellement résolu →
-                évaluation → EVALUATION_RESULT réinjecté → écart résolu ou remédiation créée.
+                Formation terminée → la preuve de fin est réinjectée dans la collecte → écart
+                partiellement résolu → évaluation → le résultat est réinjecté → écart résolu ou
+                remédiation créée.
               </p>
             </section>
           </div>
@@ -324,7 +325,7 @@ export class GapDetailPage {
     const text: Record<TrainingFormat, string> = {
       MULTIMEDIA: 'Acquérir les repères par une série documentaire structurée.',
       INTERACTIVE: 'Consolider par répétition espacée et rappel actif.',
-      PRACTICAL: 'Pratiquer en environnement isolé, preuve vérifiable à chaque lab.',
+      PRACTICAL: 'Pratiquer en environnement isolé, preuve vérifiable à chaque atelier.',
       PROJECT: 'Produire un livrable réel par jalons évalués.',
       SIMULATION: 'Décider sous contrainte dans un incident simulé.',
       AI_TUTORED: 'Construire le raisonnement par dialogue socratique.',

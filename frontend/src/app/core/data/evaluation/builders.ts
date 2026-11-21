@@ -177,6 +177,10 @@ export function buildTechnicalChallenge(program: TrainingProgram): TechnicalChal
         ],
       points: index === 2 ? 40 : 30,
       hint: `Indice : ${topic?.notions[0] ?? 'revenir à l’objectif de la formation'}`,
+      // Le premier critère est explicitement déclaré éliminatoire. Cette
+      // information appartient au document, jamais à la position supposée
+      // d'une réponse ou d'un autre critère.
+      blockingCriteria: [0],
     };
   });
 
@@ -336,6 +340,7 @@ export function buildDefenseInterview(program: TrainingProgram): DefenseIntervie
       id: `di-q${index + 1}`,
       prompt: prompts[kind],
       kind,
+      blocking: kind === 'FOND',
       expectedThemes: topic?.notions.slice(0, 3) ?? ['définition', 'application', 'limites'],
       redFlags: ['Réponse récitée sans exemple', 'Aucune limite reconnue', 'Confusion entre observation et preuve'],
       points: index < 3 ? 15 : 11,

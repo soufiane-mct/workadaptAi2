@@ -30,7 +30,7 @@ import { DataService } from '../../core/data/data.service';
           @for (certificate of issued(); track certificate.id) {
             <article class="cert">
               <div class="cert__top">
-                <span class="cert__id">{{ certificate.id }}</span>
+                <span class="cert__id">Document interne</span>
                 <span class="material-symbols-outlined cert__seal">workspace_premium</span>
               </div>
               <h2>{{ certificate.formationTitle }}</h2>
@@ -66,7 +66,7 @@ import { DataService } from '../../core/data/data.service';
               <span>1. Formation terminée</span>
               <strong>Preuve de fin déposée</strong>
               <p class="wa-small wa-muted" style="margin: 4px 0 0">
-                Toutes les unités, checkpoints et le livrable final sont exigés.
+                Toutes les unités, points de contrôle et le livrable final sont exigés.
               </p>
             </div>
             <div class="kv">
@@ -80,7 +80,8 @@ import { DataService } from '../../core/data/data.service';
               <span>3. Résultat réinjecté</span>
               <strong>Écart recalculé</strong>
               <p class="wa-small wa-muted" style="margin: 4px 0 0">
-                EVALUATION_RESULT met à jour le niveau réel et clôt l’écart.
+                Le résultat de l’évaluation est réinjecté dans la collecte : le niveau réel est
+                mis à jour et l’écart est clôturé.
               </p>
             </div>
           </div>

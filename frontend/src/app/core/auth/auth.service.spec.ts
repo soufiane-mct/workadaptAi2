@@ -4,6 +4,7 @@ import { DEMO_ACCOUNTS } from '../data/mock-data';
 import { Role } from '../models';
 
 const STORAGE_KEY = 'workadapt.session';
+const ACCOUNTS_KEY = 'workadapt.accounts';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -67,6 +68,66 @@ describe('AuthService', () => {
 
     expect(service.isAuthenticated()).toBe(false);
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it('refuse une adresse professionnelle déjà utilisée', () => {
+    service.register({
+      firstName: 'Nora',
+      lastName: 'Martin',
+      email: 'nora.martin@exemple.test',
+      jobTitle: 'Analyste',
+      department: 'Opérations',
+    });
+
+    expect(() =>
+      service.register({
+        firstName: 'Autre',
+        lastName: 'Collaboratrice',
+        email: ' NORA.MARTIN@EXEMPLE.TEST ',
+        jobTitle: 'Chargée de mission',
+        department: 'Opérations',
+      }),
+    ).toThrowError('Un compte utilise déjà cette adresse professionnelle.');
+  });
+
+  it('conserve et rouvre un compte créé sur le navigateur', () => {
+    const registered = service.register({
+      firstName: 'Nora',
+      lastName: 'Martin',
+      email: 'nora.martin@exemple.test',
+      jobTitle: 'Analyste',
+      department: 'Opérations',
+    });
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const restored = TestBed.inject(AuthService);
+
+    expect(restored.registeredAccounts().map((account) => account.id)).toContain(registered.id);
+    expect(restored.loginById(registered.id)?.employeeId).toBe(registered.employeeId);
+  });
+
+  it('rejette un compte local altéré pour usurper un rôle ou un espace collaborateur', () => {
+    const forgedAccount = {
+      id: 'usr-reg-forged',
+      name: 'Compte Altéré',
+      email: 'forge@exemple.test',
+      role: 'ADMIN',
+      jobTitle: 'Administrateur',
+      department: 'Systèmes',
+      initials: 'CA',
+      employeeId: 'emp-0001',
+    };
+    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify([forgedAccount]));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(forgedAccount));
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const restored = TestBed.inject(AuthService);
+
+    expect(restored.registeredAccounts()).toEqual([]);
+    expect(restored.isAuthenticated()).toBe(false);
+    expect(restored.role()).toBeNull();
   });
 
   it('contrôle les rôles autorisés', () => {

@@ -157,7 +157,7 @@
           <h2>Preuve de fin — {{ capstoneLabel() }}</h2>
           <p class="ws-panel__sub">
             La formation se termine uniquement lorsque toutes les unités sont faites, les
-            checkpoints validés et cette preuve déposée. Rien n’est contournable.
+            points de contrôle validés et cette preuve déposée. Rien n’est contournable.
           </p>
           @if (progress()?.capstoneValidated) {
             <p class="ws-note" style="background: var(--wa-success-soft); color: #0a6b3d">
@@ -219,7 +219,7 @@
             @if (certificate(); as certificate) {
               <a class="btn btn--primary" [routerLink]="['/app/certificats', certificate.id]">
                 <span class="material-symbols-outlined">workspace_premium</span>
-                Voir le certificat {{ certificate.id }}
+                Voir le certificat
               </a>
             } @else if (evaluation(); as evaluation) {
               <a class="btn btn--primary" [routerLink]="['/app/evaluations', req.id]">

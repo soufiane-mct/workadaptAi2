@@ -37,12 +37,10 @@ import {
   TrainingProgram,
   TrainingProgress,
   TrainingRequest,
-  User,
   WorkflowRun,
 } from '../models';
 import { AuthService } from '../auth/auth.service';
 import { AuditService } from './audit.service';
-import { DEMO_ACCOUNTS } from './mock-data';
 import { CertificationService } from './certification.service';
 import { CollectionService } from './collection.service';
 import { EvaluationService } from './evaluation.service';
@@ -53,6 +51,7 @@ import { StepVerificationService } from './step-verification.service';
 import { TechWatchService } from './tech-watch.service';
 import { TrainingService } from './training.service';
 import { WorkflowStateService } from './workflow-state.service';
+import { DemoStateStore } from './demo-state.store';
 import {
   AGENT_EXCHANGES,
   AGENTS,
@@ -86,6 +85,7 @@ export class DataService {
   readonly auditService = inject(AuditService);
   readonly workflow = inject(WorkflowStateService);
   readonly stepVerificationService = inject(StepVerificationService);
+  private readonly demoState = inject(DemoStateStore);
 
   /* ---------------------------------------------------------------- *
    * Référentiels
@@ -102,9 +102,10 @@ export class DataService {
   readonly skillSourceLabels = SKILL_SOURCE_LABELS;
 
   readonly kpis: Kpi[] = KPIS;
-  readonly team: TeamMember[] = INITIAL_TEAM;
+  /** Identités de l'annuaire, sans progression ni compétence. */
+  readonly directoryTeam: TeamMember[] = INITIAL_TEAM;
   /** Annuaire administratif : identités et rôles, sans aucune donnée de compétence. */
-  readonly accounts: User[] = DEMO_ACCOUNTS;
+  readonly accounts = computed(() => this.auth.accounts());
   readonly needs: TrainingNeed[] = TRAINING_NEEDS;
   readonly trends: SkillTrendSeries[] = SKILL_TRENDS;
   readonly reports: ReportExport[] = REPORT_EXPORTS;
@@ -194,6 +195,62 @@ export class DataService {
       .issued()
       .filter((certificate) => certificate.employeeId === employeeId);
   });
+
+  /** Détails strictement limités à l'employé connecté. */
+  myRequestById(requestId: string): TrainingRequest | undefined {
+    const employeeId = this.profileService.employeeId();
+    return this.trainingService
+      .requests()
+      .find((request) => request.id === requestId && request.employeeId === employeeId);
+  }
+
+  myProgramFor(requestId: string): TrainingProgram | undefined {
+    return this.myRequestById(requestId)
+      ? this.trainingService.programFor(requestId)
+      : undefined;
+  }
+
+  myProgressFor(requestId: string): TrainingProgress | undefined {
+    return this.myRequestById(requestId)
+      ? this.trainingService.progressFor(requestId)
+      : undefined;
+  }
+
+  myGapById(gapId: string): SkillGap | undefined {
+    return this.gapService.byId(gapId, this.profileService.employeeId());
+  }
+
+  myEvaluationById(evaluationId: string): EvaluationRecord | undefined {
+    const employeeId = this.profileService.employeeId();
+    return this.evaluationService
+      .records()
+      .find((record) => record.id === evaluationId && record.employeeId === employeeId);
+  }
+
+  myEvaluationFor(requestId: string): EvaluationRecord | undefined {
+    return this.evaluationService.forRequestFor(
+      requestId,
+      this.profileService.employeeId(),
+    );
+  }
+
+  myReportFor(evaluationId: string): EvaluationReport | undefined {
+    return this.evaluationService.reportForEmployee(
+      evaluationId,
+      this.profileService.employeeId(),
+    );
+  }
+
+  myCertificateFor(requestId: string): Certificate | undefined {
+    return this.certificationService.forRequestFor(
+      requestId,
+      this.profileService.employeeId(),
+    );
+  }
+
+  myCertificateById(id: string): Certificate | undefined {
+    return this.certificationService.byIdFor(id, this.profileService.employeeId());
+  }
 
   /* ---------------------------------------------------------------- *
    * Collecte, veille, notifications, audit
@@ -287,10 +344,95 @@ export class DataService {
    * statuer sur la demande qu'il reçoit.
    */
   private readonly supervisorBlocked = computed(() => {
-    const profile = this.profile();
-    return profile.consent.shareWithSupervisor
-      ? new Set<string>()
-      : new Set<string>([profile.employeeId]);
+    const employeeIds = new Set<string>([
+      ...Object.keys(this.profileService.profiles()),
+      ...this.requests().map((request) => request.employeeId),
+    ]);
+    return new Set(
+      Array.from(employeeIds).filter((employeeId) => !this.profileService.consentFor(employeeId)),
+    );
+  });
+
+  /**
+   * Équipe superviseur dérivée du workflow réel.
+   *
+   * Les mêmes demandes, progrès, résultats et certificats alimentent le
+   * tableau de bord, le suivi et la fiche d'équipe. Un collaborateur sans
+   * partage explicite avec son superviseur n'y apparaît pas.
+   */
+  readonly supervisorTeam = computed<TeamMember[]>(() => {
+    const blocked = this.supervisorBlocked();
+    const employeeIds = new Set<string>([
+      ...this.requests().map((request) => request.employeeId),
+      ...this.certificates().map((certificate) => certificate.employeeId),
+      ...this.evaluationReports()
+        .map((report) => this.requestById(report.requestId)?.employeeId ?? '')
+        .filter(Boolean),
+    ]);
+
+    return Array.from(employeeIds)
+      .filter((employeeId) => !blocked.has(employeeId))
+      .map((employeeId) => {
+        const profile = this.profileService.profileFor(employeeId);
+        const requests = this.requests()
+          .filter((request) => request.employeeId === employeeId)
+          .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
+        const activeRequest = requests.find((request) => request.status === 'IN_PROGRESS');
+        const progress = activeRequest ? this.progressFor(activeRequest.id) : undefined;
+        const skills = this.profileService.skillsFor(employeeId);
+        const certificates = this.certificates().filter(
+          (certificate) => certificate.employeeId === employeeId,
+        );
+        const reports = this.evaluationReports()
+          .filter(
+            (report) => this.requestById(report.requestId)?.employeeId === employeeId,
+          )
+          .sort((a, b) => b.at.localeCompare(a.at));
+        const lastReport = reports[0];
+        const averageLevel =
+          skills.length === 0
+            ? 0
+            : Math.round(skills.reduce((sum, skill) => sum + skill.level, 0) / skills.length);
+
+        return {
+          id: employeeId,
+          name:
+            `${profile.firstName} ${profile.lastName}`.trim() ||
+            requests[0]?.employeeName ||
+            'Collaborateur',
+          email: profile.email,
+          role: 'EMPLOYEE' as const,
+          jobTitle: profile.jobTitle,
+          department: profile.department,
+          status: 'ACTIVE' as const,
+          skillsTracked: skills.length,
+          averageLevel,
+          certifications: certificates.length,
+          activeFormation: activeRequest
+            ? (this.programFor(activeRequest.id)?.title ?? activeRequest.subject)
+            : undefined,
+          formationProgress: activeRequest?.progressPercent ?? 0,
+          lastEvaluation: lastReport
+            ? {
+                method: lastReport.method,
+                score: lastReport.score,
+                decision: lastReport.decision,
+                at: lastReport.at,
+              }
+            : undefined,
+          skills: skills.map((skill) => ({
+            code: skill.code,
+            label: skill.label,
+            level: skill.level,
+            target: skill.target,
+            confidence: skill.confidence,
+            source: skill.source,
+          })),
+          lastActivityAt:
+            progress?.lastActivityAt ?? requests[0]?.requestedAt ?? certificates[0]?.issuedAt,
+        } satisfies TeamMember;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
   });
 
   /** Parcours en cours visibles par le superviseur (consentement respecté). */
@@ -355,8 +497,9 @@ export class DataService {
    * ---------------------------------------------------------------- */
 
   generateTrainingForGap(gapId: string, format?: TrainingFormat): TrainingRequest | undefined {
-    const gap = this.gapService.byId(gapId);
-    if (!gap) {
+    const employeeId = this.profileService.employeeId();
+    const gap = this.gapService.byId(gapId, employeeId);
+    if (!gap || !employeeId) {
       return undefined;
     }
     return this.trainingService.generateForGap({ gap, format });
@@ -380,7 +523,9 @@ export class DataService {
   }
 
   startTraining(requestId: string): void {
-    this.trainingService.start(requestId);
+    if (this.myRequestById(requestId)) {
+      this.trainingService.start(requestId);
+    }
   }
 
   completeTrainingUnit(
@@ -388,6 +533,9 @@ export class DataService {
     unitId: string,
     minutes?: number,
   ): { ok: boolean; message: string } {
+    if (!this.myRequestById(requestId)) {
+      return { ok: false, message: 'Parcours introuvable dans votre espace.' };
+    }
     return this.trainingService.completeUnit(requestId, unitId, { minutes });
   }
 
@@ -401,64 +549,98 @@ export class DataService {
     evidence: StepEvidence;
     employeeId?: string;
   }): StepVerification {
-    return this.stepVerificationService.verify(input);
+    const request = this.myRequestById(input.requestId);
+    if (!request) {
+      throw new Error('Parcours introuvable dans votre espace.');
+    }
+    return this.stepVerificationService.verify({ ...input, employeeId: request.employeeId });
   }
 
   stepVerifications(requestId: string): StepVerification[] {
-    return this.stepVerificationService.forRequest(requestId);
+    const employeeId = this.profileService.employeeId();
+    return this.stepVerificationService.forRequestFor(requestId, employeeId);
   }
 
   lastStepVerification(requestId: string, unitId: string): StepVerification | undefined {
-    return this.stepVerificationService.lastFor(requestId, unitId);
+    return this.stepVerifications(requestId).find((item) => item.unitId === unitId);
   }
 
   saveTrainingNotes(requestId: string, unitId: string, notes: string): void {
-    this.trainingService.saveNotes(requestId, unitId, notes);
+    if (this.myRequestById(requestId)) {
+      this.trainingService.saveNotes(requestId, unitId, notes);
+    }
   }
 
   submitCapstone(requestId: string, proof: string): { ok: boolean; message: string } {
+    if (!this.myRequestById(requestId)) {
+      return { ok: false, message: 'Parcours introuvable dans votre espace.' };
+    }
     return this.trainingService.submitCapstone(requestId, proof);
   }
 
   completeTraining(requestId: string): { ok: boolean; message: string } {
+    if (!this.myRequestById(requestId)) {
+      return { ok: false, message: 'Parcours introuvable dans votre espace.' };
+    }
     return this.trainingService.complete(requestId);
   }
 
   completionState(requestId: string): { ready: boolean; missing: string[]; missingUnits: string[] } {
+    if (!this.myRequestById(requestId)) {
+      return { ready: false, missing: ['Parcours introuvable'], missingUnits: [] };
+    }
     return this.trainingService.completionState(requestId);
   }
 
   openEvaluation(requestId: string, method: EvaluationMethod): { ok: boolean; message: string } {
+    if (!this.myRequestById(requestId)) {
+      return { ok: false, message: 'Formation introuvable dans votre espace.' };
+    }
     return this.evaluationService.open(requestId, method);
   }
 
   /** Nombre de tentatives d'évaluation déjà faites sur cette formation. */
   evaluationAttempts(requestId: string): number {
-    return this.evaluationService.attempts(requestId);
+    return this.myRequestById(requestId)
+      ? this.evaluationService.attempts(requestId)
+      : 0;
   }
 
   startEvaluation(requestId: string): void {
-    this.evaluationService.start(requestId);
+    if (this.myRequestById(requestId)) {
+      this.evaluationService.start(requestId);
+    }
   }
 
   saveEvaluationAnswers(requestId: string, answers: EvaluationAnswers): void {
-    this.evaluationService.saveAnswers(requestId, answers);
+    if (this.myRequestById(requestId)) {
+      this.evaluationService.saveAnswers(requestId, answers);
+    }
   }
 
   /** Brouillon de réponses en cours de passation (conservé à la navigation). */
   evaluationDraft(evaluationId: string): EvaluationAnswers {
-    return this.evaluationService.draft(evaluationId);
+    const evaluation = this.myEvaluationById(evaluationId);
+    return evaluation ? this.evaluationService.draft(evaluationId) : {};
   }
 
   saveEvaluationDraft(evaluationId: string, answers: EvaluationAnswers): void {
-    this.evaluationService.saveDraft(evaluationId, answers);
+    if (this.myEvaluationById(evaluationId)) {
+      this.evaluationService.saveDraft(evaluationId, answers);
+    }
   }
 
   submitEvaluation(requestId: string, answers: EvaluationAnswers): EvaluationReport | undefined {
+    if (!this.myRequestById(requestId)) {
+      return undefined;
+    }
     return this.evaluationService.submit(requestId, answers);
   }
 
   finalizeEvaluation(evaluationId: string) {
+    if (!this.myEvaluationById(evaluationId)) {
+      return { outcome: 'UNKNOWN' as const };
+    }
     return this.certificationService.finalize(evaluationId);
   }
 
@@ -499,6 +681,42 @@ export class DataService {
 
   setDemoMode(value: boolean): void {
     this.workflow.setDemoMode(value);
+  }
+
+  /**
+   * Rétablit l'ensemble des données de démonstration. La session et les
+   * comptes créés sur ce navigateur sont conservés.
+   */
+  resetDemo(): void {
+    this.profileService.reset();
+    this.gapService.reset();
+    this.collectionService.reset();
+    this.techWatchService.reset();
+    this.trainingService.reset();
+    this.evaluationService.reset();
+    this.certificationService.reset();
+    this.notificationService.reset();
+    this.stepVerificationService.reset();
+    this.workflow.reset();
+    this.auditService.reset();
+    this.demoState.clear();
+  }
+
+  /** Efface uniquement l'espace du collaborateur connecté. */
+  resetEmployeeWorkspace(employeeId = this.profileService.employeeId()): void {
+    if (!employeeId) {
+      return;
+    }
+    this.profileService.clearEmployee(employeeId);
+    this.gapService.clearEmployee(employeeId);
+    this.collectionService.clearEmployee(employeeId);
+    this.techWatchService.clearEmployee(employeeId);
+    this.trainingService.clearEmployee(employeeId);
+    this.evaluationService.clearEmployee(employeeId);
+    this.certificationService.clearEmployee(employeeId);
+    this.notificationService.clearEmployee(employeeId);
+    this.stepVerificationService.clearEmployee(employeeId);
+    this.workflow.clearEmployee(employeeId);
   }
 
   /** Utilisé par les graphiques de pilotage. */

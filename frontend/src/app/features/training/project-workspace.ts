@@ -91,7 +91,8 @@ import { WorkspaceBase } from './workspace-base';
               [value]="proof(current.id)"
               [disabled]="!editable() || isDone(current.id)"
               (input)="setProof(current.id, $any($event.target).value)"
-              placeholder="Ex. Branche feature/pipeline-cache · rapport de run #412 · procédure de rollback dans docs/rollback.md"
+              (blur)="saveNotes()"
+              placeholder="Ex. Branche dédiée au cache de la chaîne d’intégration · rapport d’exécution #412 · procédure de restauration dans docs/restauration.md"
             ></textarea>
 
             <div class="ws-actions">
@@ -347,7 +348,6 @@ export class ProjectWorkspace extends WorkspaceBase {
   );
 
   readonly tasks = signal<Record<string, number[]>>({});
-  readonly proofs = signal<Record<string, string>>({});
   readonly delivered = signal<string[]>([]);
 
   /**
@@ -363,7 +363,12 @@ export class ProjectWorkspace extends WorkspaceBase {
       ),
   );
 
+  protected override restoreUnitState(_unitId: string): void {
+    // La preuve est la note commune de l'unité : la base la restaure déjà.
+  }
+
   selectMilestone(unitId: string): void {
+    this.saveNotes();
     this.select(unitId);
   }
 
@@ -384,11 +389,13 @@ export class ProjectWorkspace extends WorkspaceBase {
   }
 
   proof(milestoneId: string): string {
-    return this.proofs()[milestoneId] ?? '';
+    return milestoneId === this.activeUnit()?.id ? this.notes() : this.savedNotes(milestoneId);
   }
 
   setProof(milestoneId: string, value: string): void {
-    this.proofs.update((map) => ({ ...map, [milestoneId]: value }));
+    if (milestoneId === this.activeUnit()?.id) {
+      this.setNotes(value);
+    }
   }
 
   canDeliver(milestone: Milestone): boolean {
@@ -408,7 +415,7 @@ export class ProjectWorkspace extends WorkspaceBase {
       return;
     }
     const proof = this.proof(milestone.id);
-    this.data.saveTrainingNotes(this.request().id, milestone.id, proof);
+    this.setNotes(proof);
 
     const evidence: StepEvidence = {
       unitId: milestone.id,

@@ -348,7 +348,7 @@ export class ManagerDashboard {
     [...this.data.supervisorReports()].sort((a, b) => b.at.localeCompare(a.at)),
   );
   readonly queued = this.data.queuedGaps;
-  readonly team = computed(() => this.data.team);
+  readonly team = computed(() => this.data.supervisorTeam());
   readonly formatLabels = FORMAT_LABELS;
 
   readonly teamAverage = computed(() => {

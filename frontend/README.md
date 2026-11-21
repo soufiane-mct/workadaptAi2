@@ -1,318 +1,391 @@
-# WorkAdapt AI — Frontend
+# WorkAdapt AI — Frontend de démonstration
 
-Interface web de **WorkAdapt AI**, la plateforme multi-agents de développement continu
-des compétences décrite dans le cahier des charges v2.0.
+Interface Angular autonome de **WorkAdapt AI** pour la boucle de développement
+continu des compétences : collecte permanente, détection d'écarts, formation,
+évaluation, certification interne et pilotage.
 
-> **État actuel : prototype de démonstration.**
-> Aucune API n'est encore branchée. Toutes les données affichées sont fictives et
-> proviennent de `src/app/core/data/mock-data.ts`. L'interface est entièrement en
-> français ; les identifiants de code (types, statuts, routes internes) restent en
-> anglais, comme le veut l'usage Angular.
+> **Statut : produit de démonstration frontend autonome.**
+> Aucun serveur métier n'est requis. Les données sont fictives, amorcées
+> localement puis persistées dans le navigateur. L'interface et ses messages
+> sont en français ; les statuts et codes internes ne sont jamais affichés bruts.
+
+Ce frontend est distinct du collecteur Python du dépôt. Ce dernier n'est pas
+branché à l'application et ne constitue pas le backend du produit.
+
+## Sommaire
+
+1. [Démarrage](#1-démarrage)
+2. [Comptes et espaces](#2-comptes-et-espaces)
+3. [Boucle produit](#3-boucle-produit)
+4. [Sept formats de formation](#4-sept-formats-de-formation)
+5. [Cinq méthodes d'évaluation](#5-cinq-méthodes-dévaluation)
+6. [Certification et reprise](#6-certification-et-reprise)
+7. [Rôles, propriété et consentement](#7-rôles-propriété-et-consentement)
+8. [Collecte permanente](#8-collecte-permanente)
+9. [Persistance et réinitialisation](#9-persistance-et-réinitialisation)
+10. [Architecture](#10-architecture)
+11. [Qualité et build](#11-qualité-et-build)
+12. [Limites de la démonstration](#12-limites-de-la-démonstration)
+13. [Documentation](#13-documentation)
 
 ---
 
-## 1. Pile technique
+## 1. Démarrage
 
-| Élément | Version | Rôle |
-| --- | --- | --- |
-| Angular | 22.2 (standalone, signals, new control flow) | Framework applicatif |
-| TypeScript | 6.0 | Langage |
-| Angular Material + CDK | 22.2 | Thème Material 3, breakpoint de mise en page |
-| Vitest | 5.0 | Tests unitaires |
-| Node | ≥ 22.22.3, 24.15+ ou 26+ | Runtime (Angular 22) |
+Prérequis : Node.js 22 ou 24 LTS, ou Node.js 26, et npm 11.
 
-Les polices **Roboto** et **Material Symbols Outlined** sont embarquées via
-`@fontsource` (déclarées dans `angular.json`). L'application fonctionne donc
-**hors ligne**, sans appel à Google Fonts. Aucune bibliothèque de graphiques ni
-d'internationalisation n'est installée : les visualisations sont en CSS/SVG et
-l'interface est en français directement dans les templates.
-
----
-
-## 2. Démarrage
-
-```bash
+```powershell
 cd frontend
-npm install
-npm start          # ng serve → http://localhost:4200
-npm run build      # build de production dans dist/frontend
-npm test           # tests Vitest
+npm ci
+npm start
 ```
 
-Prérequis : Node 22.22.3+, 24.15+ ou 26+. Node 25 n'est **pas** supporté par Angular 22.
+L'application est ensuite disponible sur `http://localhost:4200`.
+
+Commandes de validation :
+
+```powershell
+npx tsc -p tsconfig.app.json --noEmit
+npm test -- --watch=false
+npm run build
+```
+
+- le build de production est généré dans `frontend/dist/frontend` ;
+- les tests utilisent Vitest via le builder Angular ;
+- les budgets de styles de composants sont 14 kB (avertissement) et 20 kB
+  (erreur).
 
 ---
 
-## 3. Comptes de démonstration
+## 2. Comptes et espaces
 
-La page de connexion propose quatre profils ; aucun mot de passe n'est demandé.
-La session est conservée dans `localStorage` (clé `workadapt.session`).
+La page de connexion propose quatre comptes de démonstration, sans mot de
+passe. Tous les rôles rejoignent le tableau de bord dispatcher par rôle.
 
-| Rôle | Compte | Page d'arrivée |
+| Rôle | Compte | Périmètre |
 | --- | --- | --- |
-| Employé | Soufiane Mechta — Développeur Backend | `/app/tableau-de-bord` |
-| Superviseur | Ahmed El Fellah — Responsable technique | `/app/validations` |
-| RH | Kawtar Souiyah — Chargée RH | `/app/rh` |
-| Administrateur | Admin WorkAdapt | `/app/agents` |
+| Employé | Soufiane Mechta — Développeur backend | Son profil, ses écarts, ses formations, ses évaluations et ses certificats |
+| Superviseur | Ahmed El Fellah — Responsable ingénierie | Validation des parcours et suivi consenting de son équipe |
+| Ressources humaines | Kawtar Souiyah — Responsable développement RH | Agrégats, besoins, tendances, rapports et certifications agrégées |
+| Administrateur | Yassine Berrada — Administrateur plateforme | Paramètres, agents, journal d'audit, annuaire et réinitialisation globale |
 
-Les gardes de route (`authGuard`, `roleGuard`) empêchent l'accès aux pages non
-autorisées et redirigent vers une page « Accès refusé » explicative.
-**Ce contrôle est purement côté client** : il ne remplace pas l'autorisation
-serveur, qui sera implémentée dans le backend Spring Boot.
+Des comptes employés peuvent aussi être créés depuis l'application. Ils restent
+disponibles sur le navigateur utilisé.
 
----
+Trois clés `localStorage` sont employées :
 
-## 4. Structure
+| Clé | Contenu |
+| --- | --- |
+| `workadapt.session` | Session et rôle courants |
+| `workadapt.accounts` | Comptes créés localement |
+| `workadapt.demo-state.v1` | État de démonstration versionné |
 
-```
-src/
-├─ app/
-│  ├─ app.config.ts          # providers : router, animations, http
-│  ├─ app.routes.ts          # routes françaises + gardes de rôle
-│  ├─ core/
-│  │  ├─ models.ts           # contrats typés (miroir des futurs DTO de l'API)
-│  │  ├─ auth/               # session simulée + gardes (authGuard, roleGuard)
-│  │  └─ data/
-│  │     ├─ data.service.ts  # POINT D'ACCÈS UNIQUE aux données
-│  │     ├─ mock-data.ts     # jeu de démonstration
-│  │     ├─ training/        # builders des 7 formats + helpers
-│  │     └─ evaluation/      # builders des 5 méthodes d'épreuve
-│  ├─ shared/
-│  │  ├─ layout/             # coque : sidenav, topbar, navigation par rôle
-│  │  └─ ui/                 # kpi-card, skill-bar, page-header, status-chip
-│  └─ features/
-│     ├─ auth/               # connexion (4 profils), page « Accès refusé »
-│     ├─ dashboard/          # dispatcher de tableau de bord par rôle
-│     ├─ employee/           # tableau de bord, écarts, parcours, formats,
-│     │                      # profil, veille, certificats, entretien
-│     ├─ training/           # les 7 espaces de formation interactifs
-│     ├─ evaluation/         # les 5 épreuves d'évaluation + orchestrateur
-│     ├─ notifications/      # centre de notifications filtré par rôle
-│     ├─ legal/              # confidentialité et consentement
-│     ├─ supervisor/         # validations, équipe, suivi, résultats
-│     ├─ hr/                 # vue RH, besoins, tendances, certifications,
-│     │                      # rapports, journal d'audit, annuaire
-│     └─ admin/              # vue système, agents IA et orchestration
-└─ styles.scss               # thème Material 3 + jetons de design --wa-*
-```
-
-Les générateurs de contenu simulé vivent dans `core/data/training/builders.ts`
-(les **sept** formats de formation) et `core/data/evaluation/builders.ts`
-(les **cinq** méthodes d'évaluation finale).
-
-### Règle d'architecture
-
-**Aucun composant ne contient de données en dur.** Toute lecture passe par
-`DataService` (signaux en lecture seule : `skills()`, `requests()`,
-`certificates()`, `agents()`, `kpis()`, etc.). Le jour où l'API existe, seule
-l'implémentation de `DataService` change — les composants restent identiques.
-
-### Identité visuelle
-
-Les couleurs, rayons, ombres et dégradés sont centralisés dans `styles.scss`
-(jetons `--wa-*`) et alignés sur les jetons Material 3. La navigation latérale est
-sombre pour détacher la marque et hiérarchiser le contenu ; la zone de travail
-reste claire et très contrastée.
-
-### Parcours, formats et évaluation (CDC §5.X)
-
-- **`/app/ecarts`** — l'IA détecte les écarts (Collector, CV, entretien,
-  projets, certifications, veille) et notifie l'employé. Celui-ci choisit
-  **un écart**, **un seul format** parmi les sept et précise le sujet et
-  l'objectif. La demande part ensuite au superviseur.
-- **`/app/validations`** — le superviseur approuve, rejette ou demande une
-  modification. L'approbation génère et débloque le contenu ; tant qu'elle
-  n'est pas donnée, la formation reste inaccessible.
-- **`/app/formations/:requestId`** — séance de formation réellement interactive
-  selon le format : épisodes multimédias, decks de révision, quiz corrigés,
-  éditeur de code vérifié, livrables de projet, scénarios de simulation, tuteur
-  IA conversationnel, production collaborative avec revue de pair. La
-  progression ne valide que les activités effectivement réalisées : chaque
-  étape envoie sa preuve à l'agent d'analyse, qui statue.
-- **`/app/evaluations/:requestId`** — après la fin de la formation, l'employé
-  choisit **une** des **cinq** méthodes d'épreuve : test de connaissances,
-  analyse de cas, épreuve technique, dossier professionnel, soutenance. L'IA
-  génère l'épreuve à partir du parcours réellement suivi, puis corrige. Le
-  score final est une moyenne pondérée sur **100**, comparée au seuil
-  `program.completion.passScore` (75 par défaut). En cas d'échec, l'employé
-  peut relire son parcours et **repasser une autre épreuve** ; le certificat
-  n'est délivré qu'en cas de réussite.
-- **`/app/notifications`** — chaque événement du parcours (écart détecté,
-  demande transmise, décision du superviseur, formation terminée, certificat)
-  produit une notification dont l'audience est filtrée par rôle.
-- **`/app/entretien`** — entretien en cinq temps : analyse du CV, conversation,
-  quiz diagnostique, mise en situation puis synthèse avec **trois actions
-  concrètes**. Les résultats sont marqués « Évalué » et restent distincts des
-  observations du poste.
-- **`/app/collecte`** — la collecte est **permanente** : elle tourne en arrière-plan
-  (cadence de 3 minutes en démonstration) et le bouton ne sert qu'à forcer une
-  reprise. Les événements `TRAINING_COMPLETION` et `EVALUATION_RESULT` sont
-  réinjectés dans la collecte.
-
-Aucun résultat n'est décidé automatiquement : les critères non vérifiables
-sont marqués « validation humaine » et le certificat reste un document interne.
+Les gardes `authGuard` et `roleGuard` contrôlent les routes. Dans cette
+démonstration, ce contrôle est côté client et ne remplace pas une autorisation
+serveur future.
 
 ---
 
-## 5. Passage aux données réelles
+## 3. Boucle produit
 
-1. Créer une implémentation HTTP de `DataService` (`HttpClient` + `Observable`
-   converti en signal via `toSignal`, ou `resource()`).
-2. Fournir l'URL de base dans un fichier d'environnement
-   (`src/environments/environment.ts`, `apiBaseUrl: 'http://localhost:8080/api/v1'`).
-3. Basculer le provider :
+Le parcours principal démontré est le suivant :
 
-```ts
-// app.config.ts
-{ provide: DataService, useClass: HttpDataService }
-```
+1. **Collecte** — la collecte continue alimente les observations et les écarts.
+2. **Choix du parcours** — l'employé choisit un écart et l'un des sept formats.
+3. **Validation humaine** — le superviseur approuve, ajuste ou rejette le
+   curriculum complet, déjà visible avant la décision.
+4. **Formation** — chaque unité produit une preuve vérifiée ; la progression
+   n'est validée que sur les activités réellement réalisées.
+5. **Fin de formation** — la preuve de fin est réinjectée dans la collecte et
+   l'écart est recalculé.
+6. **Choix de l'évaluation** — après la fin de la formation, l'employé choisit
+   l'un des cinq instruments d'évaluation.
+7. **Résultat** — la réussite délivre un certificat interne ; l'échec crée une
+   remédiation non bloquante et permet de recommencer.
+8. **Pilotage** — le superviseur suit les collaborateurs qui ont consenti au
+   partage ; les RH restent sur des agrégats ; l'administrateur administre le
+   système.
 
-Les chemins d'API attendus suivent le cahier des charges :
-`/api/v1/skills`, `/api/v1/gaps`, `/api/v1/training-requests`,
-`/api/v1/programs`, `/api/v1/evaluations`, `/api/v1/certificates`,
-`/api/v1/collection/events`, `/api/v1/agents`, `/api/v1/kpis`, `/api/v1/audit`.
-
----
-
-## 6. Rôles et navigation
-
-| Page | Route | Employé | Superviseur | RH | Admin |
-| --- | --- | :---: | :---: | :---: | :---: |
-| Tableau de bord | `/app/tableau-de-bord` | ✔ | ✔ | ✔ | ✔ |
-| Notifications | `/app/notifications` | ✔ | ✔ | ✔ | ✔ |
-| Confidentialité | `/app/confidentialite` | ✔ | ✔ | ✔ | ✔ |
-| Profil professionnel | `/app/onboarding` | ✔ | — | — | — |
-| Mes écarts | `/app/ecarts` | ✔ | — | — | — |
-| Mes formations | `/app/formations` | ✔ | — | — | — |
-| Séance de formation | `/app/formations/:requestId` | ✔ | — | — | — |
-| Évaluation | `/app/evaluations/:requestId` | ✔ | — | — | — |
-| Mes certificats | `/app/certificats` | ✔ | — | — | — |
-| Veille technologique | `/app/veille` | ✔ | — | — | — |
-| Mon profil | `/app/profil` | ✔ | — | — | — |
-| Entretien IA | `/app/entretien` | ✔ | — | — | — |
-| Collecte | `/app/collecte` | ✔ | — | — | — |
-| Validations | `/app/validations` | — | ✔ | — | — |
-| Mon équipe | `/app/equipe` | — | ✔ | — | ✔ |
-| Suivi des formations | `/app/suivi-formations` | — | ✔ | — | ✔ |
-| Résultats et évaluations | `/app/resultats` | — | ✔ | — | ✔ |
-| Pilotage RH | `/app/rh` | — | — | ✔ | ✔ |
-| Besoins de formation | `/app/rh/besoins` | — | — | ✔ | ✔ |
-| Tendances | `/app/rh/tendances` | — | — | ✔ | ✔ |
-| Rapports et exports | `/app/rh/rapports` | — | — | ✔ | ✔ |
-| Certifications agrégées | `/app/rh/certifications` | — | — | ✔ | ✔ |
-| Administration | `/app/admin` | — | — | — | ✔ |
-| Agents IA | `/app/agents` | — | — | ✔ | ✔ |
-| Journal d'audit | `/app/rh/audit` | — | — | — | ✔ |
-| Utilisateurs et rôles | `/app/rh/utilisateurs` | — | — | — | ✔ |
-
-> **Règles de séparation des privilèges**
-> - Les vues RH sont **agrégées et non nominatives** : ni nom, ni e-mail, ni
->   niveau individuel. Le journal d'audit et l'annuaire, nominatifs, sont
->   réservés à l'administrateur.
-> - L'approbation d'un curriculum est **réservée au superviseur** : aucun rôle
->   technique ne peut valider un parcours.
-> - Les écrans personnels (« Mes formations », « Mes certificats ») ne
->   affichent que le périmètre de l'employé connecté.
+Les fin de formation et les résultats d'évaluation sont réinjectés comme
+événements de collecte. Les notification, preuves, décisions, évaluations et
+certificats restent rattachés à leur collaborateur.
 
 ---
 
-## 7. Principes issus du cahier des charges
+## 4. Sept formats de formation
 
-- **Observation ≠ inférence** : chaque compétence affiche sa source (`Observé`,
-  `Déclaré`, `Évalué`, `Certifié`), son niveau de confiance et ses preuves.
-- **Validation humaine obligatoire** : aucun parcours ni aucune formation n'est
-  lancé sans approbation du superviseur ; il peut approuver, demander une
-  modification ou rejeter, et chaque décision est conservée avec sa date.
-- **Aucune décision disciplinaire automatisée** : les écrans le rappellent
-  explicitement (entretien, profil, certificats, notifications).
-- **Transparence des sources** : le profil liste les six sources de données, leur
-  état de synchronisation, les finalités, les droits d'accès, la durée de
-  conservation et la méthode d'estimation (CDC §12.2).
-- **Formats de formation réels** : les sept formats du CDC (multimédia,
-  interactive, pratique, projet, simulation, personnalisée IA, collaborative)
-  ne sont pas des fiches de texte : chacun produit une séance interactive
-  (vidéo, cartes, quiz, code, livrable, scénario, tuteur, pair).
-- **Évaluation au choix** : l'employé choisit **une** des cinq méthodes
-  d'épreuve **après** la formation ; l'IA génère l'épreuve à partir du parcours
-  terminé, avec pondération, règles éliminatoires et seuil de 75 / 100.
-- **Reprise libre** : après un échec, l'employé peut relire son parcours et
-  repasser une autre épreuve, en boucle. Seul le certificat délivré arrête la
-  boucle.
-- **Certificats internes** : délivrés uniquement au-dessus du seuil ; les
-  évaluations échouées sont enregistrées sans certificat, avec une remédiation
-  non bloquante créée automatiquement.
-- **Notifications traçables** : chaque événement du parcours produit une
-  notification non disciplinaire, dont l'audience est filtrée par rôle.
+Chaque format possède une structure, une interaction et une preuve distinctes.
+
+| Format | Expérience |
+| --- | --- |
+| Multimédia | Épisodes guidés avec progression, notes et validation d'activité |
+| Interactive | Séances de révision par cartes et questions à reveal |
+| Pratique | Laboratoires, commandes, contrôles et restitution |
+| Projet | Livrable structuré, jalons et démonstration de résultat |
+| Simulation | Scénarios, décisions et débriefing |
+| Tuteur IA | Dialogue guidé et teach-back documenté |
+| Collaboratif | Contributions, revues croisées et synthèse collective |
+
+Les sept catalogues sont construits dans
+`src/app/core/data/training/builders.ts`. Les espaces interactifs se trouvent
+dans `src/app/features/training/`.
+
+Le temps crédité correspond à la durée du curriculum et aux jalons prévus ; il
+ne provient jamais du temps d'écran réellement observé.
 
 ---
 
-## 8. Conventions
+## 5. Cinq méthodes d'évaluation
 
-- Composants `standalone`, `ChangeDetectionStrategy.OnPush`, signaux.
-- Nommage Angular 22 : `dashboard.ts` / `dashboard.html` / `dashboard.scss`,
-  classes sans suffixe `Component` (sauf composants partagés historiques).
-- Icônes : `<span class="material-symbols-outlined">nom_icone</span>`
-  (pas de `mat-icon`, la police Material Symbols est chargée globalement).
-- Textes visibles en français ; les identifiants de code (types, statuts,
-  routes internes) restent en anglais, mais **aucun statut technique n'est
-  affiché brut** dans l'interface.
+Le collaborateur choisit sa méthode **après** la formation. Chaque méthode a
+son propre document, son mode de passation et sa correction.
+
+| Méthode | Instrument | Preuve principale |
+| --- | --- | --- |
+| Test de connaissances | Examen écrit, choix multiples, questions ouvertes et techniques | Score par section et analyse des erreurs |
+| Épreuve technique | Tâches vérifiables dans un environnement simulé | Critères observés, note d'exécution et journal |
+| Analyse de cas | Diagnostic, hypothèses, décisions et justification | Raisonnement évalué par grille |
+| Dossier professionnel | Livrable complet et entretien de vérification | Conformité du dossier et defense des choix |
+| Soutenance professionnelle | Questions de fond, relances, contre-exemples et situations | Grille d'entretien |
+
+Les documents sont construits dans
+`src/app/core/data/evaluation/builders.ts`. Les cinq épreuves sont dans
+`src/app/features/evaluation/`.
+
+Le score final est une **moyenne pondérée normalisée sur 100**, et non une
+somme brute de points. Il est comparé au seuil
+`program.completion.passScore`, actuellement **75/100** pour les programmes de
+démonstration.
+
+Les exigences éliminatoires sont déclarées explicitement dans les documents.
+Une exigence non satisfaite invalide l'épreuve quel que soit le score ; la
+longueur d'une réponse ne neutralise jamais cette règle.
 
 ---
 
-## 9. Tests
+## 6. Certification et reprise
 
-```bash
-npm test                      # Vitest, exécution unique
-npx ng test --watch=false     # équivalent via le CLI Angular
+### Réussite
+
+- le score atteint le seuil du programme ;
+- aucune exigence éliminatoire n'est violée ;
+- le certificat interne est délivré ;
+- le résultat est réinjecté dans la collecte et l'écart est recalculé ;
+- les remédiations ouvertes sur le même écart sont closes ;
+- aucune nouvelle évaluation n'est ouverte pour cette formation.
+
+### Échec
+
+- aucun certificat n'est émis ;
+- l'interface distingue le seuil non atteint d'une exigence bloquante ;
+- une remédiation distincte est créée et soumise au superviseur ;
+- cette remédiation est **non bloquante** ;
+- l'employé peut relire le parcours et choisir une nouvelle méthode ;
+- la reprise reste possible jusqu'à la délivrance du certificat.
+
+Le certificat est un **document interne de démonstration**. Il n'a aucune
+valeur réglementaire et ne constitue ni une certification officielle ni une
+habilitation. Le bouton « Imprimer via le navigateur » déclenche réellement
+l'impression du navigateur ; aucun PDF natif n'est fabriqué.
+
+---
+
+## 7. Rôles, propriété et consentement
+
+### Routes par rôle
+
+| Espace | Employé | Superviseur | RH | Administrateur |
+| --- | :---: | :---: | :---: | :---: |
+| Tableau de bord, notifications, confidentialité | ✔ | ✔ | ✔ | ✔ |
+| Profil, écarts, formations, évaluations, certificats, veille, collecte | ✔ | — | — | — |
+| Validation des parcours | — | ✔ | — | — |
+| Suivi, résultats et équipe | — | ✔ | — | ✔ |
+| Pilotage RH agrégé | — | — | ✔ | ✔ |
+| Agents IA | — | — | ✔ | ✔ |
+| Administration | — | — | — | ✔ |
+| Journal d'audit et annuaire | — | — | — | ✔ |
+
+### Propriété des données
+
+- Les lectures et actions personnelles sont filtrées par l'`employeeId` de la
+  session, et pas seulement masquées visuellement.
+- Deux employés peuvent utiliser le même navigateur sans partager leur profil,
+  leurs preuves, leurs formations, leurs évaluations, leurs certificats ou
+  leurs notifications.
+- L'équipe du superviseur est dérivée du flux de travail réel. Chaque collaborateur
+  n'y apparaît que si le partage avec le superviseur est consenti.
+- Les vues RH sont agrégées et non nominatives : aucun nom, e-mail, niveau
+  individuel, écart individuel ou résultat individuel n'y est exposé.
+- Le journal d'audit et l'annuaire nominatif sont réservés à
+  l'administrateur.
+- L'approbation d'un curriculum est réservée au superviseur.
+
+### Consentements
+
+Deux consentements sont distincts :
+
+- **Collecte permanente** : son retrait bloque l'envoi du profil à l'IA,
+  suspend le parcours en cours, empêche l'envoi de preuves et l'enregistrement
+  de nouveaux événements pour le collaborateur. La cadence de collecte reste
+  active et trace son exécution sans constituer un événement de données.
+- **Partage avec le superviseur** : son retrait masque progression, résultats
+  et certificats au superviseur. Le superviseur peut néanmoins statuer sur une
+  demande déjà transmise.
+
+Le détail contractuel figure dans
+[`docs/matrice-roles-ownership.md`](docs/matrice-roles-ownership.md).
+
+---
+
+## 8. Collecte permanente
+
+La collecte frontend démarre avec le shell et s'arrête lorsque l'application
+est fermée. Sa cadence métier de démonstration est de trois minutes ; une
+vérification interne est réalisée toutes les quinze secondes.
+
+Elle :
+
+- simule les sources autorisées et conserve les événements horodatés ;
+- persiste les événements dans l'état local ;
+- n'enregistre aucune donnée pour un collaborateur sans consentement de
+  collecte ;
+- réinjecte les fins de formation et les résultats d'évaluation ;
+- alimente les écarts, les compétences et les indicateurs de la boucle.
+
+Le collecteur Python réel du dépôt est un composant séparé. Il n'est ni
+simulé par, ni connecté à, ce frontend dans la démonstration actuelle.
+
+---
+
+## 9. Persistance et réinitialisation
+
+`DemoStateStore` conserve l'état dans une enveloppe versionnée :
+
+```json
+{
+  "version": 1,
+  "savedAt": "2026-11-21T05:00:00.000Z",
+  "data": {}
+}
 ```
 
-La suite couvre le scoring des cinq méthodes d'évaluation, les règles
-éliminatoires, le cycle échec → reprise → certificat, les conditions de fin de
-parcours (dont l'atteignabilité après modification du curriculum), l'analyse
-des preuves d'étape, les notifications par rôle et les garde-fous de service.
+Une enveloppe de version incompatible est ignorée proprement. Les changements
+importants sont persistés immédiatement : parcours, preuves, évaluations,
+certificats, collection, notifications et audit restent disponibles après un
+rechargement.
 
-État actuel : **10 fichiers, 55 tests au vert**.
+Deux réinitialisations sont proposées avec confirmation explicite :
 
----
+| Action | Portée | Compte et session |
+| --- | --- | --- |
+| **Rétablir les données** — Administrateur | Restaure le jeu de démonstration global | Conservés |
+| **Effacer mon espace** — Employé | Efface uniquement l'espace du collaborateur connecté | Conservés |
 
-## 10. Limites connues du prototype
-
-- Données fictives, aucune persistance : un rechargement réinitialise les
-  demandes de formation, les décisions d'approbation et la progression. Seul
-  le compte connecté est conservé (`localStorage`).
-- Le contenu des formations et des évaluations est généré de façon
-  déterministe côté frontend ; aucun moteur pédagogique réel n'est branché.
-- L'évaluation n'est accessible qu'**après** la fin complète de la formation
-  (`request.status === 'COMPLETED'`).
-- Pas d'authentification réelle (pas de JWT, pas de mot de passe) : le contrôle
-  d'accès est purement côté client et devra être reproduit côté serveur.
-- L'entretien IA enchaîne des questions et activités prédéfinies ; il n'y a pas
-  de modèle de langage connecté, et l'entretien de soutenance est simulé.
-- Le contrôle de cohérence temporelle des preuves d'étape est **actif hors mode
-  démonstration** (`step-verification.service.ts`). En mode démonstration, le
-  temps est compressé (facteur ×20) : le ratio temps passé / durée planifiée
-  n'a pas de sens et le contrôle est explicitement écarté, avec la trace dans
-  le verdict. Le mode se règle dans l'écran d'administration.
-- Téléchargement des certificats PDF désactivé ; les rapports CSV/PDF RH sont
-  simulés et étiquetés comme tels.
-- Les 13 KPI, besoins et tendances sont des jeux de démonstration statiques :
-  ils seront calculés à partir des événements persistés côté backend.
-- Le consentement est enregistré et affiché, mais la politique de collecte
-  (suspension au retrait) reste à implémenter côté backend.
+Les confirmations utilisent la fenêtre native du navigateur et sont écrites en
+français.
 
 ---
 
-## 11. Prochaines étapes
+## 10. Architecture
 
-1. Backend Spring Boot + PostgreSQL (`workadapt`), endpoint
-   `POST /api/v1/agent/events` pour le Desktop Agent.
-2. Contrat d'événements (`docs/event-contract.md`) et modèle de données
-   (`docs/data-model.sql`).
-3. Remplacement de `DataService` par l'implémentation HTTP, ajout des
-   intercepteurs JWT et **reproduction des contrôles d'accès côté serveur**
-   (périmètre employé, rôle superviseur pour l'approbation, agrégat RH).
-4. Persistance des transitions métier (profil, parcours, évaluations,
-   certificats, collecte, journal d'audit) et calcul des KPI sur événements.
-5. Reproduction du contrôle de cohérence temporelle côté serveur (temps réel
-   mesuré, hors mode démonstration).
-6. Tests d'intégration frontend/backend et recette des parcours.
+```text
+src/app/
+├─ app.config.ts                 providers Angular et animations
+├─ app.routes.ts                 routes françaises et gardes de rôle
+├─ core/
+│  ├─ auth/                      session locale, gardes et comptes locaux
+│  ├─ models.ts                  contrats typés du domaine
+│  └─ data/
+│     ├─ demo-state.store.ts     persistance locale versionnée
+│     ├─ data.service.ts         façade de projections et d'actions
+│     ├─ training.service.ts     règles du parcours et des preuves
+│     ├─ evaluation.service.ts   correction, score et règles éliminatoires
+│     ├─ certification.service.ts     issuance du certificat et remédiation
+│     ├─ collection.service.ts   collecte permanente et réinjection
+│     ├─ training/               constructeurs des sept formats
+│     └─ evaluation/             constructeurs des cinq méthodes
+├─ features/
+│  ├─ auth/                      connexion et accès refusé
+│  ├─ dashboard/                 dispatch par rôle
+│  ├─ employee/                  espace collaborateur
+│  ├─ training/                  sept expériences de formation
+│  ├─ evaluation/                cinq expériences d'évaluation
+│  ├─ supervisor/                validation et suivi avec consentement
+│  ├─ hr/                        agrégats RH
+│  ├─ admin/                     administration
+│  └─ legal/                     confidentialité et consentement
+└─ shared/                       structure, navigation mobile et composants d'interface
+```
+
+Les règles métier restent dans les services Angular. `DataService` est la
+façade principale utilisée par les écrans, mais des fixtures de présentation
+locales restent possibles. Une future API devra remplacer les sources de
+données sans déplacer ces règles dans les composants.
+
+Les composants sont standalone, utilisent les signaux et
+`ChangeDetectionStrategy.OnPush`. Les écrans personnels sont explicitement limités
+par `employeeId` ; la navigation mobile expose `aria-expanded`, rend le tiroir
+fermé `inert`, ferme avec Échap et piège le focus pendant son ouverture.
+
+---
+
+## 11. Qualité et build
+
+La suite de référence contient 21 fichiers de tests et 109 cas. Elle couvre
+notamment :
+
+- les sept formats, les cinq méthodes, les 13 KPI et le seuil de réussite ;
+- la restauration des notes et de la progression de chaque format ;
+- la collecte permanente, sa persistance et la réinjection des fins de
+  formation et des résultats d'évaluation ;
+- une réponse de soutenance longue mais hors sujet ;
+- la conservation des brouillons d'évaluation ;
+- l'isolation `employeeId` et la persistance après rechargement ;
+- le consentement de collecte et le partage superviseur ;
+- la matrice des routes et des rôles ;
+- les confirmations de réinitialisation ;
+- les messages d'échec de l'interface d'évaluation ;
+- le tiroir mobile, son état accessible et le piège de focus.
+
+```powershell
+npx tsc -p tsconfig.app.json --noEmit
+npm test -- --watch=false
+npm run build
+```
+
+Les 13 KPI de démonstration restent inchangés : couverture de collecte,
+précision d'identification des compétences, pertinence des écarts, pertinence
+des recommandations, temps de génération d'un parcours, taux d'approbation,
+taux de complétion, taux de réussite aux évaluations, amélioration des
+compétences, réduction des écarts, taux de boucles terminées, taux de
+réussite des workflows et temps de réponse API.
+
+Les exports RH CSV/PDF sont **simulés** : l'interface ne fabrique aucun
+fichier. Ils sont explicitement étiquetés comme tels.
+
+---
+
+## 12. Limites de la démonstration
+
+- Les données sont fictives et locales à un navigateur ; aucun
+  synchronisation multi-appareil n'est disponible.
+- L'authentification et les gardes sont simulés côté client.
+- L'IA, les preuves, les agents et la génération de curriculum sont déterministes
+  et simulés ; aucun modèle de langage n'est connecté.
+- Les KPI, besoins, tendances et exports reposent sur des jeux de
+  démonstration statiques.
+- Les certificats sont des documents internes sans valeur réglementaire.
+- L'impression dépend du navigateur et des imprimantes installées.
+- Aucune pile backend n'est choisie. Les routes API, l'authentification et le
+  stockage serveur restent des décisions ouvertes.
+
+Le collecteur Python, les tests du collecteur, ses données et son archive ne
+font pas partie de ce frontend et ne doivent pas être modifiés pour ce projet.
+
+---
+
+## 13. Documentation
+
+- [Guide de démonstration](docs/guide-demo.md)
+- [Matrice des rôles et de la propriété des données](docs/matrice-roles-ownership.md)
+- [Traçabilité des exigences](docs/tracabilite.md)

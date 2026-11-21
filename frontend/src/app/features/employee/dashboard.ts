@@ -351,19 +351,17 @@ export class EmployeeDashboard {
    * l’unique porte d’entrée de l’évaluation après la formation.
    */
   readonly evaluable = computed(() =>
-    this.data.trainingService
-      .completed()
-      .find((request) => !this.data.evaluationFor(request.id)),
+    this.data.myCompletedTrainings().find((request) => !this.data.myEvaluationFor(request.id)),
   );
   readonly evaluationProgramTitle = computed(() => {
     const request = this.evaluable();
     if (!request) {
       return '';
     }
-    return this.data.programFor(request.id)?.title ?? request.subject;
+    return this.data.myProgramFor(request.id)?.title ?? request.subject;
   });
   readonly programTitle = computed(
-    () => (this.active() ? this.data.programFor(this.active()!.id)?.title ?? '' : ''),
+    () => (this.active() ? this.data.myProgramFor(this.active()!.id)?.title ?? '' : ''),
   );
   readonly formatLabel = computed(() => {
     const training = this.active();

@@ -1,9 +1,10 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import {
   AnswerValue,
   CaseAnalysisDocument,
   CriterionResult,
   DefenseInterviewDocument,
+  DEFENSE_QUESTION_KIND_LABELS,
   EVALUATION_METHOD_INFO,
   EVALUATION_METHOD_LABELS,
   EVALUATION_METHODS,
@@ -23,6 +24,7 @@ import { AuditService } from './audit.service';
 import { buildEvaluationDocument, programTopics } from './evaluation/builders';
 import { TrainingService } from './training.service';
 import { WorkflowStateService } from './workflow-state.service';
+import { DemoStateStore } from './demo-state.store';
 
 const EMPTY_ANSWERS: EvaluationAnswers = {};
 
@@ -71,9 +73,14 @@ export class EvaluationService {
   private readonly training = inject(TrainingService);
   private readonly audit = inject(AuditService);
   private readonly workflow = inject(WorkflowStateService);
+  private readonly store = inject(DemoStateStore);
 
-  private readonly _records = signal<EvaluationRecord[]>([]);
-  private readonly _reports = signal<EvaluationReport[]>([]);
+  private readonly _records = signal<EvaluationRecord[]>(
+    this.store.read<EvaluationRecord[]>('evaluation.records', []),
+  );
+  private readonly _reports = signal<EvaluationReport[]>(
+    this.store.read<EvaluationReport[]>('evaluation.reports', []),
+  );
   /**
    * Brouillons de réponses, par évaluation.
    *
@@ -83,7 +90,9 @@ export class EvaluationService {
    * remise) pour ne pas modifier l'identité de l'enregistrement — sans
    * quoi le composant serait recréé à chaque frappe.
    */
-  private readonly _drafts = signal<Record<string, EvaluationAnswers>>({});
+  private readonly _drafts = signal<Record<string, EvaluationAnswers>>(
+    this.store.read<Record<string, EvaluationAnswers>>('evaluation.drafts', {}),
+  );
 
   readonly records = this._records.asReadonly();
   readonly reports = this._reports.asReadonly();
@@ -102,6 +111,14 @@ export class EvaluationService {
     this._records().filter((record) => record.decision === 'ECHOUE'),
   );
 
+  constructor() {
+    effect(() => {
+      this.store.write('evaluation.records', this._records());
+      this.store.write('evaluation.reports', this._reports());
+      this.store.write('evaluation.drafts', this._drafts());
+    });
+  }
+
   /* ---------------------------------------------------------------- *
    * Lecture
    * ---------------------------------------------------------------- */
@@ -112,12 +129,26 @@ export class EvaluationService {
       .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt))[0];
   }
 
+  /** Lecture limitée à l'espace d'un collaborateur. */
+  forRequestFor(requestId: string, employeeId: string): EvaluationRecord | undefined {
+    return [...this._records()]
+      .filter((record) => record.requestId === requestId && record.employeeId === employeeId)
+      .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt))[0];
+  }
+
   attempts(requestId: string): number {
     return this._records().filter((record) => record.requestId === requestId).length;
   }
 
   reportFor(evaluationId: string): EvaluationReport | undefined {
     return this._reports().find((report) => report.evaluationId === evaluationId);
+  }
+
+  reportForEmployee(evaluationId: string, employeeId: string): EvaluationReport | undefined {
+    const owned = this._records().some(
+      (record) => record.id === evaluationId && record.employeeId === employeeId,
+    );
+    return owned ? this.reportFor(evaluationId) : undefined;
   }
 
   latestReport(): EvaluationReport | undefined {
@@ -182,8 +213,9 @@ export class EvaluationService {
     };
 
     this._records.update((records) => [record, ...records]);
+    this.persistEvaluation();
     this.audit.log({
-      actor: 'Assessment & Certification Agent',
+      actor: 'Agent d’évaluation et de certification',
       action: 'Génération d’évaluation',
       target: record.id,
       detail: `${EVALUATION_METHOD_LABELS[method]} généré depuis le parcours ${program.id} (${programTopics(program).length} sujets travaillés).`,
@@ -230,6 +262,7 @@ export class EvaluationService {
   /** Enregistre le brouillon de réponses sans clore l'épreuve. */
   saveDraft(evaluationId: string, answers: EvaluationAnswers): void {
     this._drafts.update((drafts) => ({ ...drafts, [evaluationId]: answers }));
+    this.persistEvaluation();
   }
 
   /* ---------------------------------------------------------------- *
@@ -314,9 +347,10 @@ export class EvaluationService {
       correctedAt: new Date().toISOString(),
     });
     this._reports.update((reports) => [report, ...reports]);
+    this.persistEvaluation();
     this.workflow.setEvaluationInProgress(false);
     this.audit.log({
-      actor: 'Assessment & Certification Agent',
+      actor: 'Agent d’évaluation et de certification',
       action: 'Correction d’évaluation',
       target: record.id,
       detail: `Score ${score}/100 (seuil ${passScore}) — décision ${decision}.`,
@@ -445,15 +479,35 @@ export class EvaluationService {
       }
     }
 
+    if (method === 'TECHNICAL_CHALLENGE') {
+      for (const task of (document as TechnicalChallengeDocument).tasks) {
+        const checked = Array.isArray(answers[task.id]) ? answers[task.id] as number[] : [];
+        const missing = (task.blockingCriteria ?? []).filter((index) => !checked.includes(index));
+        if (missing.length > 0) {
+          const labels = missing
+            .map((index) => task.successCriteria[index])
+            .filter((label): label is string => !!label);
+          failures.push(
+            `Critère éliminatoire non satisfait pour la tâche « ${task.title} »${
+              labels.length > 0 ? ` : ${labels.join(' · ')}` : ''
+            }.`,
+          );
+        }
+      }
+    }
+
     if (method === 'DEFENSE_INTERVIEW') {
       for (const question of (document as DefenseInterviewDocument).questions) {
-        if (question.kind !== 'FOND') {
+        if (question.blocking !== true) {
           continue;
         }
         const text =
           typeof answers[question.id] === 'string' ? String(answers[question.id]) : '';
-        if (this.isRedFlag(text)) {
-          failures.push(`Erreur critique sur une notion fondamentale : ${question.prompt}`);
+        // Une réponse longue reste insuffisante si elle ne démontre aucune
+        // des notions attendues. La longueur ne neutralise jamais une règle
+        // éliminatoire.
+        if (this.isRedFlag(text) || coverage(text, question.expectedThemes) < 0.25) {
+          failures.push(`Maîtrise non démontrée sur une question fondamentale : ${question.prompt}`);
         }
       }
     }
@@ -488,10 +542,14 @@ export class EvaluationService {
       const answer = answers[task.id];
       const checked = Array.isArray(answer) ? answer : [];
       const total = task.successCriteria.length;
-      const mandatoryOk = checked.includes(0);
+      const blockingCriteria = task.blockingCriteria ?? [];
+      const missingBlocking = blockingCriteria.filter((index) => !checked.includes(index));
+      const blockingSatisfied = missingBlocking.length === 0;
       const hintUsed = answers[`${task.id}::hint`] !== undefined;
       // Les indices sont annoncés comme réduisant le score de la tâche.
-      const ratio = mandatoryOk ? (checked.length / Math.max(1, total)) * (hintUsed ? 0.9 : 1) : 0;
+      const ratio = blockingSatisfied
+        ? (checked.length / Math.max(1, total)) * (hintUsed ? 0.9 : 1)
+        : 0;
       const earned = task.points * ratio;
       const note =
         typeof answers[`${task.id}::note`] === 'string' ? String(answers[`${task.id}::note`]) : '';
@@ -503,8 +561,11 @@ export class EvaluationService {
         weight: task.points,
         earned: Math.round(earned * 10) / 10,
         max: task.points,
-        comment: !mandatoryOk
-          ? 'Critère éliminatoire non satisfait : la tâche est invalidée.'
+        comment: !blockingSatisfied
+          ? `Critère éliminatoire non satisfait : ${missingBlocking
+              .map((index) => task.successCriteria[index])
+              .filter((label): label is string => !!label)
+              .join(' · ')}. La tâche est invalidée.`
           : hintUsed
             ? 'Tâche conforme, mais un indice a été utilisé : score réduit.'
             : ratio >= 0.8
@@ -645,7 +706,7 @@ export class EvaluationService {
           : Math.min(1, 0.25 + 0.75 * coverage(text, question.expectedThemes));
       return {
         id: question.id,
-        label: `${question.kind} — ${question.prompt}`,
+        label: `${DEFENSE_QUESTION_KIND_LABELS[question.kind]} — ${question.prompt}`,
         weight: 0,
         earned: Math.round(question.points * ratio * 10) / 10,
         max: question.points,
@@ -734,6 +795,44 @@ export class EvaluationService {
     this._records.update((records) =>
       records.map((record) => (record.id === id ? { ...record, ...patch } : record)),
     );
+    this.persistEvaluation();
+  }
+
+  /** Rend immédiatement l'évaluation durable dans le stockage local. */
+  private persistEvaluation(): void {
+    this.store.write('evaluation.records', this._records());
+    this.store.write('evaluation.reports', this._reports());
+    this.store.write('evaluation.drafts', this._drafts());
+  }
+
+  /** Efface les évaluations d'un collaborateur sans toucher aux autres espaces. */
+  clearEmployee(employeeId: string): void {
+    const evaluationIds = new Set(
+      this._records()
+        .filter((record) => record.employeeId === employeeId)
+        .map((record) => record.id),
+    );
+    this._records.update((records) =>
+      records.filter((record) => record.employeeId !== employeeId),
+    );
+    this._reports.update((reports) =>
+      reports.filter((report) => !evaluationIds.has(report.evaluationId)),
+    );
+    this._drafts.update((drafts) => {
+      const next = { ...drafts };
+      for (const evaluationId of evaluationIds) {
+        delete next[evaluationId];
+      }
+      return next;
+    });
+    this.persistEvaluation();
+  }
+
+  reset(): void {
+    this._records.set([]);
+    this._reports.set([]);
+    this._drafts.set({});
+    this.persistEvaluation();
   }
 
   /** Réponse brute normalisée, utile aux écrans. */

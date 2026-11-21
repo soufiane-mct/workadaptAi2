@@ -214,7 +214,7 @@ export function buildInteractiveProgram(ctx: BuildContext, pack: KnowledgePack):
 }
 
 /**
- * 3. PRATIQUE — labs réels, environnement, critères, validation par preuve.
+ * 3. PRATIQUE — ateliers réels, environnement, critères, validation par preuve.
  * Aucun quiz : la preuve est l’exécution réussie.
  */
 export function buildPracticalProgram(ctx: BuildContext, pack: KnowledgePack): PracticalProgram {
@@ -224,7 +224,7 @@ export function buildPracticalProgram(ctx: BuildContext, pack: KnowledgePack): P
   const units = labs.map((lab, index) => ({
     id: `lab-${ctx.requestId}-${index + 1}`,
     order: index + 1,
-    title: `Lab ${index + 1} — ${lab.title}`,
+    title: `Atelier ${index + 1} — ${lab.title}`,
     brief: lab.brief,
     environment: lab.environment,
     steps: lab.steps,
@@ -245,7 +245,7 @@ export function buildPracticalProgram(ctx: BuildContext, pack: KnowledgePack): P
     skillCode: ctx.skillCode,
     skillLabel: ctx.skillLabel,
     title: `${ctx.skillLabel} — parcours pratique`,
-    summary: `${units.length} labs en environnement contrôlé, avec consignes, indices, commandes et critères de validation. La preuve de maîtrise est l’exécution, pas un questionnaire.`,
+    summary: `${units.length} ateliers en environnement contrôlé, avec consignes, indices, commandes et critères de validation. La preuve de maîtrise est l’exécution, pas un questionnaire.`,
     domain: ctx.domain,
     subject: ctx.subject,
     levelFrom: ctx.levelFrom,
@@ -265,7 +265,7 @@ export function buildPracticalProgram(ctx: BuildContext, pack: KnowledgePack): P
     completion: completionCriteria(
       totalHours,
       units.length,
-      'Tous les labs validés + tâche pratique finale conforme aux critères',
+      'Tous les ateliers validés + tâche pratique finale conforme aux critères',
     ),
     complementary: complementaryFor('PRACTICAL'),
     recommendedEvaluation: recommendedEvaluations('PRACTICAL'),
@@ -277,7 +277,7 @@ export function buildPracticalProgram(ctx: BuildContext, pack: KnowledgePack): P
       brief: `Sans aide ni indice : réalisez la tâche complète de bout en bout et documentez vos décisions.`,
       criteria: [
         'Le résultat attendu est produit',
-        'Les critères du dernier lab sont tous respectés',
+        'Les critères du dernier atelier sont tous respectés',
         'Les décisions techniques sont justifiées',
         'Aucune étape critique n’a été sautée',
       ],

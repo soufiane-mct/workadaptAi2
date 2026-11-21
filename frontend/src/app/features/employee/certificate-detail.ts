@@ -3,6 +3,8 @@ import { RouterLink } from '@angular/router';
 import { EVALUATION_METHOD_LABELS, FORMAT_LABELS } from '../../core/models';
 import { DataService } from '../../core/data/data.service';
 
+const CERTIFICATE_PRINT_CLASS = 'wa-certificate-printing';
+
 @Component({
   selector: 'wa-certificate-detail',
   imports: [RouterLink],
@@ -15,16 +17,17 @@ import { DataService } from '../../core/data/data.service';
             <a class="wa-small" routerLink="/app/certificats" style="color: var(--wa-primary-deep); font-weight: 600">
               ← Mes certificats
             </a>
-            <h1 style="margin-top: 6px">Certificat {{ cert.id }}</h1>
+            <h1 style="margin-top: 6px">Document de démonstration interne</h1>
             <p>
-              Délivré par WorkAdapt AI après une évaluation réussie. Ce document atteste d’un
-              niveau démontré, pas d’une simple présence en formation.
+              Ce document interne résume une évaluation réussie. Il ne constitue ni une
+              certification officielle, ni une habilitation réglementaire, ni une preuve du
+              niveau actuel de la compétence.
             </p>
           </div>
           <div class="page-head__actions">
             <button class="btn" type="button" (click)="print()">
               <span class="material-symbols-outlined">print</span>
-              Imprimer / PDF (simulé)
+              Imprimer via le navigateur
             </button>
           </div>
         </header>
@@ -34,12 +37,16 @@ import { DataService } from '../../core/data/data.service';
           <div class="award__head">
             <span class="award__seal material-symbols-outlined">workspace_premium</span>
             <div>
-              <span class="award__eyebrow">Certificat de compétence</span>
-              <strong class="award__id">{{ cert.id }}</strong>
+              <span class="award__eyebrow">Document de démonstration interne</span>
+              <strong class="award__id">Référence interne</strong>
             </div>
           </div>
 
-          <p class="award__intro">Ce certificat est décerné à</p>
+          <p class="award__disclaimer">
+            Démonstration interne · aucune valeur réglementaire ni certification officielle
+          </p>
+
+          <p class="award__intro">Ce document mentionne</p>
           <h2 class="award__name">{{ cert.employeeName }}</h2>
           <p class="award__intro">pour la formation</p>
           <h3 class="award__formation">{{ cert.formationTitle }}</h3>
@@ -74,12 +81,12 @@ import { DataService } from '../../core/data/data.service';
 
           <div class="award__foot">
             <div>
-              <span>Date de délivrance</span>
+              <span>Date de production</span>
               <strong>{{ day(cert.issuedAt) }}</strong>
             </div>
             <div>
-              <span>Vérification</span>
-              <strong class="wa-mono">{{ verification(cert.id) }}</strong>
+              <span>Référence interne</span>
+              <strong class="wa-mono">{{ reference(cert.id) }}</strong>
             </div>
           </div>
         </article>
@@ -104,7 +111,7 @@ import { DataService } from '../../core/data/data.service';
                 <span class="icon-round material-symbols-outlined">grading</span>
                 <div class="row__main">
                   <strong>Évaluation</strong>
-                  <p>{{ methodLabels[cert.method] }} · {{ cert.evaluationId }}</p>
+                  <p>{{ methodLabels[cert.method] }} · résultat corrigé et archivé</p>
                 </div>
                 <span class="material-symbols-outlined">chevron_right</span>
               </a>
@@ -128,11 +135,11 @@ import { DataService } from '../../core/data/data.service';
             <ul class="limits">
               <li>Il ne remplace pas une habilitation réglementaire.</li>
               <li>Il ne prouve pas les compétences non évaluées.</li>
-              <li>Une nouvelle évaluation peut le révoquer si le niveau baisse durablement.</li>
+              <li>Il ne décrit pas les évolutions ultérieures de la compétence.</li>
             </ul>
             <p class="note" style="margin-top: 10px">
-              La veille technologique peut rouvrir un écart sur cette compétence : le certificat
-              reste acquis, mais le niveau est réévalué.
+              La veille technologique peut rouvrir un écart sur cette compétence. Une nouvelle
+              évaluation pourra alors produire un nouveau document de démonstration.
             </p>
           </section>
         </div>
@@ -308,24 +315,33 @@ export class CertificateDetail {
 
   readonly id = input.required<string>();
 
-  readonly certificate = computed(() => this.data.certificateById(this.id()));
+  readonly certificate = computed(() => this.data.myCertificateById(this.id()));
   readonly methodLabels = EVALUATION_METHOD_LABELS;
   readonly formatLabels = FORMAT_LABELS;
 
   readonly gapId = computed(() => {
     const cert = this.certificate();
-    const request = cert ? this.data.requestById(cert.requestId) : undefined;
+    const request = cert ? this.data.myRequestById(cert.requestId) : undefined;
     return request?.gapId ?? '';
   });
 
   print(): void {
-    window.print();
+    document.body.classList.add(CERTIFICATE_PRINT_CLASS);
+    try {
+      window.print();
+    } finally {
+      document.body.classList.remove(CERTIFICATE_PRINT_CLASS);
+    }
   }
 
-  verification(id: string): string {
-    return `WA-${id.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}-${new Date(
-      this.certificate()?.issuedAt ?? Date.now(),
-    ).getFullYear()}`;
+  /** Référence stable, présentée comme une référence interne sans valeur de vérification externe. */
+  reference(id: string): string {
+    let hash = 0;
+    for (const character of id) {
+      hash = (Math.imul(hash, 31) + character.charCodeAt(0)) >>> 0;
+    }
+    const year = new Date(this.certificate()?.issuedAt ?? Date.now()).getFullYear();
+    return `WA-${year}-${hash.toString(36).toUpperCase().padStart(5, '0')}`;
   }
 
   day(value: string): string {

@@ -107,7 +107,7 @@ import { programUnits } from '../../core/data/training/helpers';
 
       <section class="panel">
         <h2>Ce que la validation engage</h2>
-        <div class="split--even" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+        <div class="split--even">
           <div class="kv">
             <span>Approuver</span>
             <strong>Vous validez le volume, les unités et les conditions de fin.</strong>

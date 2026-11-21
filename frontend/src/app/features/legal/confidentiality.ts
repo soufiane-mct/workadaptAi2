@@ -102,7 +102,7 @@ import { DataService } from '../../core/data/data.service';
                     <td>Journal d’audit</td>
                     <td>Non</td>
                     <td>Non</td>
-                    <td>Lecture</td>
+                    <td>Non</td>
                     <td>Lecture</td>
                   </tr>
                 </tbody>

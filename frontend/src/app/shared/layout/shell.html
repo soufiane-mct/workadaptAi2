@@ -1,5 +1,12 @@
 <div class="shell" [class.shell--mobile]="mobile()">
-  <aside class="side" [class.side--open]="menuOpen()">
+  <aside
+    #sideNav
+    id="primary-navigation"
+    class="side"
+    [class.side--open]="menuOpen()"
+    [attr.aria-hidden]="mobile() && !menuOpen() ? 'true' : null"
+    [attr.inert]="mobile() && !menuOpen() ? '' : null"
+  >
     <a class="brand" routerLink="/app/tableau-de-bord" (click)="closeOnNavigate()">
       <span class="brand__mark material-symbols-outlined">hub</span>
       <span class="brand__text">
@@ -8,7 +15,7 @@
       </span>
     </a>
 
-    <nav class="nav">
+    <nav class="nav" aria-label="Navigation principale">
       @for (group of groups(); track group.title) {
         <div class="nav__group">
           <p class="nav__title">{{ group.title }}</p>
@@ -43,7 +50,15 @@
   <div class="main">
     <header class="topbar">
       @if (mobile()) {
-        <button class="icon-btn" type="button" (click)="toggleMenu()" aria-label="Ouvrir le menu">
+        <button
+          #menuToggle
+          class="icon-btn"
+          type="button"
+          (click)="toggleMenu()"
+          aria-controls="primary-navigation"
+          [attr.aria-expanded]="menuOpen()"
+          [attr.aria-label]="menuOpen() ? 'Fermer le menu' : 'Ouvrir le menu'"
+        >
           <span class="material-symbols-outlined">menu</span>
         </button>
       }

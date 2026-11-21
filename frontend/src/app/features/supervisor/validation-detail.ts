@@ -144,7 +144,7 @@ import { capstoneOf, programUnits } from '../../core/data/training/helpers';
                 <div class="condition">
                   <span class="material-symbols-outlined">flag</span>
                   <div>
-                    <strong>Checkpoints formatifs</strong>
+                    <strong>Points de contrôle formatifs</strong>
                     <small>{{ program()?.completion?.requireAllCheckpoints ? 'Tous exigés' : 'Non exigés' }} · remédiation avant passage.</small>
                   </div>
                 </div>
@@ -238,7 +238,7 @@ import { capstoneOf, programUnits } from '../../core/data/training/helpers';
                     </p>
                     <label class="wa-field">
                       <span class="wa-field__label">Note de validation (facultative)</span>
-                      <textarea class="wa-textarea" rows="3" [value]="note()" (input)="note.set($any($event.target).value)" placeholder="Ex. Parcours cohérent avec l’écart détecté ; priorité sur le lab de rollback."></textarea>
+                      <textarea class="wa-textarea" rows="3" [value]="note()" (input)="note.set($any($event.target).value)" placeholder="Ex. Parcours cohérent avec l’écart détecté ; priorité sur l’atelier de restauration."></textarea>
                     </label>
                     <button class="btn btn--primary" type="button" style="width: 100%; margin-top: 10px" (click)="approve()">
                       <span class="material-symbols-outlined">verified</span>
